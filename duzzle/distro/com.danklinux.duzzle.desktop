@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Duzzle
+GenericName=Puzzle Hub
+Comment=Puzzle & arcade games for DMS
+Exec=duzzle %u
+Icon=com.danklinux.duzzle
+Terminal=false
+Type=Application
+Categories=Game;LogicGame;Qt;
+Keywords=puzzle;minesweeper;arcade;game;dank;
+StartupNotify=true
+StartupWMClass=com.danklinux.duzzle

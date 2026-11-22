@@ -1,0 +1,590 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import qs.Common
+import qs.Services
+import qs.DCommon.Common
+import qs.DCommon.Widgets
+
+Item {
+    id: root
+
+    anchors.fill: parent
+
+    readonly property bool hasTimers: ClockService.timers.length > 0
+    property int draggingTimerIndex: -1
+    readonly property int safeActiveIdx: Math.max(0, Math.min(ClockService.activeTimerIndex, ClockService.timers.length - 1))
+    readonly property var currentTimer: {
+        void ClockService.timerTickRevision;
+        return hasTimers ? ClockService.timers[safeActiveIdx] : null;
+    }
+    readonly property bool currentRunning: {
+        void ClockService.timerTickRevision;
+        return Boolean(currentTimer && currentTimer.running);
+    }
+    readonly property bool currentFinished: {
+        void ClockService.timerTickRevision;
+        return Boolean(currentTimer && currentTimer.finished);
+    }
+    readonly property double currentTotalMs: {
+        void ClockService.timerTickRevision;
+        return currentTimer ? currentTimer.totalMs : 0;
+    }
+    readonly property double currentRemainingMs: {
+        void ClockService.timerTickRevision;
+        return currentTimer ? currentTimer.remainingMs : 0;
+    }
+    readonly property real currentProgress: {
+        void ClockService.timerTickRevision;
+        if (!currentTimer || currentTotalMs <= 0)
+            return 0;
+        return Math.max(0, Math.min(1, currentRemainingMs / currentTotalMs));
+    }
+
+    readonly property var quickPresets: [
+        { label: "1 min", sec: 60 },
+        { label: "3 min", sec: 180 },
+        { label: "5 min", sec: 300 },
+        { label: "10 min", sec: 600 },
+        { label: "15 min", sec: 900 },
+        { label: "25 min", sec: 1500 },
+        { label: "45 min", sec: 2700 }
+    ]
+
+    DFlickable {
+        id: flickable
+        anchors.fill: parent
+        clip: true
+        contentWidth: width
+        contentHeight: pageColumn.height + ClockMetrics.pagePaddingV + Theme.spacingXL * 4
+
+        Column {
+            id: pageColumn
+            topPadding: Theme.spacingL
+            width: Math.min(ClockMetrics.contentMaxWidth, parent.width - Theme.spacingL * 2)
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: ClockMetrics.cardGap
+
+            // Primary Hero Card: Active Timer Gauge OR Custom Timer Setup
+            Rectangle {
+                id: heroTimerCard
+                width: parent.width
+                height: heroCol.implicitHeight + Theme.spacingXL * 2
+                radius: Theme.cornerRadiusXL
+                color: heroHover.hovered ? Theme.surfaceContainerHighest : ClockMetrics.rowColor
+                border.width: Theme.layerOutlineWidth
+                border.color: (root.currentRunning && !ClockService.timerSetupMode)
+                    ? Theme.primary
+                    : (heroHover.hovered ? Theme.outline : Theme.outlineMedium)
+
+                Behavior on color {
+                    enabled: Theme.animationsEnabled
+                    ColorAnimation { duration: ClockMetrics.fadeDuration }
+                }
+                Behavior on border.color {
+                    enabled: Theme.animationsEnabled
+                    ColorAnimation { duration: ClockMetrics.fadeDuration }
+                }
+
+                HoverHandler {
+                    id: heroHover
+                }
+
+                Column {
+                    id: heroCol
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: Theme.spacingXL
+                    spacing: Theme.spacingL
+
+                    // Header inside hero card
+                    Item {
+                        width: parent.width
+                        height: 36
+
+                        Row {
+                            id: headerLeftRow
+                            anchors.left: parent.left
+                            anchors.right: customDurationBtn.visible ? customDurationBtn.left : parent.right
+                            anchors.rightMargin: customDurationBtn.visible ? Theme.spacingS : 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.spacingS
+
+                            DBadge {
+                                id: headerStatusBadge
+                                visible: !ClockService.timerSetupMode && root.currentTimer !== null
+                                text: root.currentFinished ? "FINISHED" : (root.currentRunning ? "RUNNING" : "PAUSED")
+                                color: root.currentFinished ? Theme.errorContainer : (root.currentRunning ? Theme.primary : Theme.secondaryContainer)
+                                textColor: root.currentFinished ? Theme.onErrorContainer : (root.currentRunning ? Theme.onPrimary : Theme.onSecondaryContainer)
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Math.max(0, headerLeftRow.width - (headerStatusBadge.visible ? headerStatusBadge.width + headerLeftRow.spacing : 0))
+                                text: (ClockService.timerSetupMode || !root.hasTimers) ? "Create Custom Timer" : (root.currentTimer ? root.currentTimer.label : "Timer")
+                                font.pixelSize: Theme.fontSizeLarge
+                                font.weight: Theme.fontWeightBold
+                                color: Theme.surfaceText
+                                wrapMode: Text.NoWrap
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        DButton {
+                            id: customDurationBtn
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: root.hasTimers
+                            text: ClockService.timerSetupMode ? "Back to Gauge" : "Custom Duration"
+                            iconName: ClockService.timerSetupMode ? "close" : "more_time"
+                            buttonHeight: Theme.buttonHeightXS
+                            backgroundColor: Theme.secondaryContainer
+                            textColor: Theme.onSecondaryContainer
+                            onClicked: ClockService.timerSetupMode = !ClockService.timerSetupMode
+                        }
+                    }
+
+                    // Mode A: Custom Duration Setup using DNumberStepper
+                    Column {
+                        visible: ClockService.timerSetupMode || !root.hasTimers
+                        width: parent.width
+                        spacing: Theme.spacingL
+
+                        Row {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            spacing: Theme.spacingL
+
+                            Repeater {
+                                model: [
+                                    { title: "HOURS", value: ClockService.setupHours, max: 23, step: 1, prop: "setupHours" },
+                                    { title: "MINUTES", value: ClockService.setupMinutes, max: 59, step: 1, prop: "setupMinutes" },
+                                    { title: "SECONDS", value: ClockService.setupSeconds, max: 59, step: 5, prop: "setupSeconds" }
+                                ]
+
+                                Rectangle {
+                                    id: stepperCard
+                                    required property var modelData
+                                    width: 120
+                                    height: 158
+                                    radius: stepperHover.hovered ? Theme.cornerRadiusL : Theme.cornerRadiusM
+                                    color: stepperHover.hovered ? Theme.surfaceContainerHighest : Theme.surfaceContainer
+                                    border.width: 1
+                                    border.color: stepperHover.hovered ? Theme.primary : Theme.outlineVariant
+
+                                    HoverHandler { id: stepperHover }
+
+                                    Column {
+                                        anchors.centerIn: parent
+                                        spacing: Theme.spacingS
+
+                                        StyledText {
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            text: stepperCard.modelData.title
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            font.weight: Theme.fontWeightBold
+                                            color: Theme.primary
+                                        }
+
+                                        DNumberStepper {
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            text: String(stepperCard.modelData.value).padStart(2, "0")
+                                            textSize: Theme.fontSizeXXLarge
+                                            buttonSize: Theme.buttonHeightXS
+                                            incrementEnabled: stepperCard.modelData.value <= stepperCard.modelData.max - stepperCard.modelData.step
+                                            decrementEnabled: stepperCard.modelData.value > 0
+                                            onIncrement: () => ClockService[stepperCard.modelData.prop] = Math.min(stepperCard.modelData.max, stepperCard.modelData.value + stepperCard.modelData.step)
+                                            onDecrement: () => ClockService[stepperCard.modelData.prop] = Math.max(0, stepperCard.modelData.value - stepperCard.modelData.step)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        DTextField {
+                            id: customLabelField
+                            width: Math.min(380, parent.width)
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            placeholderText: "Timer label (e.g., Boil Eggs, Deep Work)"
+                            leftIconName: "label"
+                        }
+
+                        DButton {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "Start Timer"
+                            iconName: "play_arrow"
+                            buttonHeight: Theme.buttonHeightM
+                            backgroundColor: Theme.primary
+                            textColor: Theme.onPrimary
+                            enabled: (ClockService.setupHours * 3600 + ClockService.setupMinutes * 60 + ClockService.setupSeconds) > 0
+                            onClicked: {
+                                ClockService.startCustomTimer(customLabelField.text);
+                                customLabelField.text = "";
+                            }
+                        }
+                    }
+
+                    // Mode B: Active Ring Gauge + Controls
+                    Column {
+                        visible: !ClockService.timerSetupMode && root.hasTimers
+                        width: parent.width
+                        spacing: Theme.spacingL
+
+                        // Proper 232x232 Ring Gauge container with Organic Blob Backdrop
+                        ClockRingDial {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            dialSize: 232
+                            blobSize: 196
+                            progress: root.currentProgress
+                            ringColor: root.currentFinished ? Theme.error : Theme.primary
+                            active: root.currentRunning
+                            clickable: root.currentTimer !== null
+                            tooltipText: root.currentRunning ? "Click to pause" : "Click to start"
+                            onClicked: ClockService.toggleTimer(root.safeActiveIdx)
+
+                            NumericText {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: root.currentTimer ? ClockService.formatDuration(root.currentRemainingMs) : "00:00"
+                                font.pixelSize: Theme.fontSizeDisplay
+                                font.weight: Font.Bold
+                                color: Theme.surfaceText
+                            }
+
+                            StyledText {
+                                visible: root.currentTimer !== null
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: root.currentTimer ? `Total ${ClockService.formatDuration(root.currentTotalMs)}` : ""
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Theme.fontWeightMedium
+                                color: Theme.surfaceVariantText
+                            }
+                        }
+
+                        // Control Buttons Row
+                        Row {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            spacing: Theme.spacingM
+
+                            DButton {
+                                text: "Reset"
+                                iconName: "restart_alt"
+                                buttonHeight: Theme.buttonHeightM
+                                backgroundColor: Theme.secondaryContainer
+                                textColor: Theme.onSecondaryContainer
+                                onClicked: ClockService.resetTimer(root.safeActiveIdx)
+                            }
+
+                            DButton {
+                                text: "+1:00"
+                                iconName: "more_time"
+                                buttonHeight: Theme.buttonHeightM
+                                backgroundColor: Theme.secondaryContainer
+                                textColor: Theme.onSecondaryContainer
+                                onClicked: ClockService.addOneMinute(root.safeActiveIdx)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Quick Start Presets Section
+            Column {
+                width: parent.width
+                spacing: 0
+
+                ClockSectionLabel {
+                    width: parent.width
+                    text: "Quick Start Presets"
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: Theme.spacingS
+
+                    Repeater {
+                        model: root.quickPresets
+
+                        DButton {
+                            required property var modelData
+                            text: modelData.label
+                            iconName: "bolt"
+                            buttonHeight: Theme.buttonHeightS
+                            backgroundColor: ClockMetrics.rowColor
+                            textColor: Theme.surfaceText
+                            onClicked: ClockService.startPresetTimer(modelData.sec, modelData.label)
+                        }
+                    }
+                }
+            }
+
+            // Saved & Active Timers Grid (with Drag-and-Drop Reorder in Edit Mode)
+            Column {
+                visible: ClockService.timers.length > 0
+                width: parent.width
+                spacing: 0
+
+                ClockSectionLabel {
+                    width: parent.width
+                    text: ClockService.timerEditMode
+                        ? `All Timers (${ClockService.timers.length}) — Drag to reorder`
+                        : `All Timers (${ClockService.timers.length})`
+                }
+
+                Item {
+                    id: timersGridContainer
+                    width: parent.width
+                    height: timersGrid.implicitHeight
+
+                    readonly property real gap: Theme.spacingM
+                    readonly property int cols: width >= 620 ? 3 : (width >= 420 ? 2 : 1)
+                    readonly property real cardWidth: Math.floor((width - (cols - 1) * gap) / cols)
+
+                    Grid {
+                        id: timersGrid
+                        width: parent.width
+                        columns: timersGridContainer.cols
+                        spacing: timersGridContainer.gap
+
+                        Repeater {
+                            model: ClockService.timers.length
+
+                            Rectangle {
+                                id: timerCard
+                                required property int index
+
+                                readonly property var timerObj: {
+                                    void ClockService.timerTickRevision;
+                                    return ClockService.timers[index] || { id: 0, label: "Timer", totalMs: 0, remainingMs: 0, running: false, finished: false };
+                                }
+                                readonly property bool isCurrent: index === root.safeActiveIdx && !ClockService.timerSetupMode
+                                readonly property bool itemRunning: {
+                                    void ClockService.timerTickRevision;
+                                    return Boolean(timerObj.running);
+                                }
+                                readonly property bool itemFinished: {
+                                    void ClockService.timerTickRevision;
+                                    return Boolean(timerObj.finished);
+                                }
+                                readonly property string countdownText: {
+                                    void ClockService.timerTickRevision;
+                                    return ClockService.formatDuration(timerObj.remainingMs);
+                                }
+                                readonly property bool isLongCountdown: countdownText.length > 5
+                                readonly property bool isBeingDragged: root.draggingTimerIndex === index
+
+                                width: timersGridContainer.cardWidth
+                                height: 92
+                                radius: timerCardHover.hovered ? Theme.cornerRadiusXL : Theme.cornerRadiusL
+                                scale: isBeingDragged ? 1.03 : (timerCardMouse.pressed ? 0.98 : 1.0)
+                                z: isBeingDragged ? 50 : 1
+                                color: isCurrent
+                                    ? (timerCardHover.hovered ? Theme.blend(Theme.secondaryContainer, Theme.primary, 0.18) : Theme.withAlpha(Theme.secondaryContainer, 0.85))
+                                    : (timerCardHover.hovered ? Theme.surfaceContainerHigh : Theme.surfaceContainerLow)
+                                border.width: (isCurrent || itemRunning || ClockService.timerEditMode || timerCardHover.hovered) ? 1.5 : 1
+                                border.color: itemRunning
+                                    ? Theme.primary
+                                    : (isCurrent ? Theme.primary : (timerCardHover.hovered ? Theme.outline : Theme.outlineVariant))
+
+                                Behavior on radius {
+                                    enabled: Theme.animationsEnabled
+                                    NumberAnimation { duration: ClockMetrics.transitionDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: ClockMetrics.curveFastSpatial }
+                                }
+                                Behavior on scale {
+                                    enabled: Theme.animationsEnabled
+                                    NumberAnimation { duration: ClockMetrics.transitionDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: ClockMetrics.curveFastSpatial }
+                                }
+                                Behavior on color {
+                                    enabled: Theme.animationsEnabled
+                                    ColorAnimation { duration: ClockMetrics.fadeDuration }
+                                }
+                                Behavior on border.color {
+                                    enabled: Theme.animationsEnabled
+                                    ColorAnimation { duration: ClockMetrics.fadeDuration }
+                                }
+
+                                HoverHandler {
+                                    id: timerCardHover
+                                }
+
+                                // Click to select on gauge; Drag to reorder when in Edit Mode
+                                MouseArea {
+                                    id: timerCardMouse
+                                    anchors.fill: parent
+                                    preventStealing: ClockService.timerEditMode
+                                    cursorShape: ClockService.timerEditMode
+                                        ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+                                        : Qt.PointingHandCursor
+                                    property bool dragged: false
+
+                                    onPressed: {
+                                        dragged = false;
+                                        if (ClockService.timerEditMode)
+                                            root.draggingTimerIndex = timerCard.index;
+                                    }
+                                    onPositionChanged: mouse => {
+                                        if (!pressed || !ClockService.timerEditMode || root.draggingTimerIndex < 0)
+                                            return;
+                                        const targetIdx = ClockService.calcGridDropIndex(
+                                            timerCard,
+                                            timersGrid,
+                                            mouse.x,
+                                            mouse.y,
+                                            timersGridContainer.cardWidth,
+                                            timerCard.height,
+                                            timersGrid.spacing,
+                                            timersGrid.columns,
+                                            ClockService.timers.length,
+                                            0
+                                        );
+                                        if (targetIdx >= 0 && targetIdx !== root.draggingTimerIndex) {
+                                            dragged = true;
+                                            ClockService.moveTimer(root.draggingTimerIndex, targetIdx);
+                                            root.draggingTimerIndex = targetIdx;
+                                        }
+                                    }
+                                    onReleased: {
+                                        if (!dragged) {
+                                            ClockService.activeTimerIndex = timerCard.index;
+                                            ClockService.timerSetupMode = false;
+                                        }
+                                        root.draggingTimerIndex = -1;
+                                    }
+                                    onCanceled: root.draggingTimerIndex = -1
+                                }
+
+                                DTooltipHost {
+                                    target: timerCard
+                                    hoverArea: timerCardMouse
+                                    text: ClockService.timerEditMode ? "Drag to reorder timer" : "Click to focus on gauge"
+                                }
+
+                                Column {
+                                    anchors.fill: parent
+                                    anchors.margins: Theme.spacingM
+                                    spacing: Theme.spacingXS
+
+                                    // Top Row: Icon/Drag Handle + Label + Status Dot
+                                    Item {
+                                        width: parent.width
+                                        height: 22
+
+                                        Row {
+                                            anchors.left: parent.left
+                                            anchors.right: statusBadge.left
+                                            anchors.rightMargin: Theme.spacingXS
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            spacing: 6
+
+                                            DIcon {
+                                                name: ClockService.timerEditMode
+                                                    ? "drag_indicator"
+                                                    : (timerCard.itemRunning ? "timelapse" : "hourglass_empty")
+                                                size: Theme.iconSizeSmall
+                                                color: timerCard.itemRunning ? Theme.primary : Theme.surfaceVariantText
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+
+                                            StyledText {
+                                                text: timerCard.timerObj.label
+                                                font.pixelSize: Theme.fontSizeMedium
+                                                font.weight: Font.DemiBold
+                                                color: Theme.surfaceText
+                                                wrapMode: Text.NoWrap
+                                                elide: Text.ElideRight
+                                                width: Math.max(0, parent.width - 22)
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        StyledText {
+                                            id: statusBadge
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: timerCard.itemFinished ? "Finished" : (timerCard.itemRunning ? "Running" : (timerCard.isCurrent ? "Active" : "Paused"))
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            font.weight: Font.Medium
+                                            color: timerCard.itemFinished ? Theme.error : (timerCard.itemRunning ? Theme.primary : Theme.surfaceVariantText)
+                                        }
+                                    }
+
+                                    // Bottom Row: Tabular Countdown + Action Buttons
+                                    Item {
+                                        width: parent.width
+                                        height: 36
+
+                                        NumericText {
+                                            anchors.left: parent.left
+                                            anchors.right: timerCardControls.left
+                                            anchors.rightMargin: Theme.spacingXS
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: timerCard.countdownText
+                                            font.pixelSize: timerCard.isLongCountdown ? Theme.fontSizeLarge : Theme.fontSizeXLarge
+                                            font.weight: Font.Bold
+                                            color: timerCard.itemRunning ? Theme.primary : Theme.surfaceText
+                                            horizontalAlignment: Text.AlignLeft
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Row {
+                                            id: timerCardControls
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            spacing: ClockService.timerEditMode ? Theme.spacingXXS : Theme.spacingXS
+
+                                            DIconButton {
+                                                iconName: timerCard.itemRunning ? "pause" : "play_arrow"
+                                                variant: timerCard.itemRunning ? "filled" : "tonal"
+                                                size: "s"
+                                                tooltipText: timerCard.itemRunning ? "Pause timer" : "Start timer"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                onClicked: ClockService.toggleTimer(timerCard.index)
+                                            }
+
+                                            DIconButton {
+                                                iconName: "restart_alt"
+                                                variant: "standard"
+                                                size: "s"
+                                                tooltipText: "Reset timer"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                onClicked: ClockService.resetTimer(timerCard.index)
+                                            }
+
+                                            DIconButton {
+                                                visible: ClockService.timerEditMode
+                                                iconName: "delete_outline"
+                                                variant: "standard"
+                                                size: "s"
+                                                iconColor: Theme.error
+                                                tooltipText: "Delete timer"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                onClicked: ClockService.removeTimer(timerCard.index)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Official DCommon DFab Bar anchored to bottom-right
+    ClockEditFabBar {
+        editMode: ClockService.timerEditMode
+        hasItems: ClockService.timers.length > 0
+        createIcon: "more_time"
+        createText: "New Timer"
+        createTooltip: "Create a custom duration timer"
+        editTooltip: "Edit or delete timers"
+        doneTooltip: "Finish editing timers"
+        onCreateClicked: {
+            ClockService.timerSetupMode = true;
+            flickable.cancelFlick();
+            flickable.contentY = 0;
+        }
+        onToggleEditClicked: ClockService.timerEditMode = !ClockService.timerEditMode
+    }
+}

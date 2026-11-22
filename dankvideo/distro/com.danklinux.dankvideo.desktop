@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=DankVideo
+Comment=Video player for DMS
+Exec=dplay %F
+Icon=com.danklinux.dankvideo
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;Player;Qt;
+MimeType=video/mp4;video/x-matroska;video/webm;video/quicktime;video/x-msvideo;video/x-flv;video/x-ms-wmv;video/ogg;
+StartupNotify=true
