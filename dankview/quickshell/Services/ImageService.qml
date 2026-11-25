@@ -69,7 +69,12 @@ Singleton {
     property string filterDateAdded: "All"
     property string filterSortOrder: "Newest first"
     property bool filterFavoritesOnly: false
-    property bool filterIncludeHidden: false
+    property bool filterIncludeHidden: SettingsData.filterIncludeHidden
+    onFilterIncludeHiddenChanged: {
+        if (SettingsData.filterIncludeHidden !== filterIncludeHidden) {
+            SettingsData.filterIncludeHidden = filterIncludeHidden;
+        }
+    }
     property int galleryZoomLevel: 3
 
     readonly property bool hasActiveFilters: {
@@ -1153,6 +1158,10 @@ Singleton {
 
     property bool _galleryReloadPending: false
 
+    function rescan() {
+        loadGallery(currentGalleryDir || "");
+    }
+
     function loadGallery(dirPath) {
         if (galleryProc.running || isGalleryLoading) {
             _galleryReloadPending = true;
@@ -1162,6 +1171,9 @@ Singleton {
         isGalleryLoading = true;
 
         const cmd = [dviewBin, "-gallery"];
+        if (SettingsData.galleryScanVideos) {
+            cmd.push("-include-videos");
+        }
         const removed = (albumsConfig && Array.isArray(albumsConfig.removedFolders)) ? albumsConfig.removedFolders : [];
         const excludePaths = removed.filter(p => p && p.startsWith("/"));
         if (excludePaths.length > 0) {
@@ -1180,7 +1192,16 @@ Singleton {
         galleryProc.running = true;
     }
 
+    function isVideoFile(filePath) {
+        if (!filePath) return false;
+        return /\.(mp4|mkv|webm|mov|avi|flv|wmv|m4v|ogv|3gp|ts)$/i.test(filePath);
+    }
+
     function openImageFromGallery(filePath, thumbPath, navigationPaths) {
+        if (isVideoFile(filePath)) {
+            Quickshell.execDetached(["dplay", filePath]);
+            return;
+        }
         _navToken++;
         previewThumbnail = thumbPath || "";
         const galleryPaths = Array.isArray(navigationPaths) ? navigationPaths.filter(path => !!path) : [];

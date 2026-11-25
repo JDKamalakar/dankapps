@@ -30,10 +30,38 @@ var supportedExtensions = map[string]bool{
 	".dds":  true,
 }
 
+var supportedVideoExtensions = map[string]bool{
+	".mp4":  true,
+	".mkv":  true,
+	".webm": true,
+	".mov":  true,
+	".avi":  true,
+	".flv":  true,
+	".wmv":  true,
+	".m4v":  true,
+	".ogv":  true,
+	".3gp":  true,
+	".ts":   true,
+}
+
 // IsSupportedImage checks if the file has a supported image extension.
 func IsSupportedImage(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return supportedExtensions[ext]
+}
+
+// IsSupportedVideo checks if the file has a supported video extension.
+func IsSupportedVideo(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	return supportedVideoExtensions[ext]
+}
+
+// IsSupportedMedia checks if the file is supported image or (if includeVideos is true) video.
+func IsSupportedMedia(path string, includeVideos bool) bool {
+	if IsSupportedImage(path) {
+		return true
+	}
+	return includeVideos && IsSupportedVideo(path)
 }
 
 // ImageList contains sorted images in a directory and the index of the selected file.

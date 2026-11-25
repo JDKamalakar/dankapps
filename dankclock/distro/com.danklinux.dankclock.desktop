@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=DankClock
+Name=DUX Clock
 GenericName=Clock & Timer
 Comment=Clock, Alarm, Timer & Stopwatch for DMS
-Exec=dclock %u
+Exec=sh -c "PATH=$HOME/.local/bin:$PATH exec dclock \"$@\"" -- %u
 Icon=com.danklinux.dankclock
 Terminal=false
 Type=Application

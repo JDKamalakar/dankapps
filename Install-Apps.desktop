@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Terminal=true
+Exec=kitty --hold /home/JD/Downloads/Projects/dankapps/install.sh
+Name=Install DUX Apps
+Comment=Installer script for DUX Apps
+Icon=system-software-install
+Categories=Utility;System;
+Path=/home/JD/Downloads/Projects/dankapps

@@ -52,18 +52,89 @@ Singleton {
     property alias reduceMotion: adapter.reduceMotion
     property alias springBounce: adapter.springBounce
     property alias enableRippleEffects: adapter.enableRippleEffects
+    property alias density: adapter.density
+    property alias motionDuration: adapter.motionDuration
+    property alias fontSource: adapter.fontSource
+    property alias fontFamily: adapter.fontFamily
+    property alias monoFontFamily: adapter.monoFontFamily
+    property alias displayFontFamily: adapter.displayFontFamily
+    property alias windowTitleBars: adapter.windowTitleBars
+    property alias floatingWindowTransparency: adapter.floatingWindowTransparency
+    property alias floatingWindowForegroundLayers: adapter.floatingWindowForegroundLayers
+    property alias floatingWindowForegroundTransparency: adapter.floatingWindowForegroundTransparency
+    property alias blurEnabled: adapter.blurEnabled
+    property alias settingsItemSeparation: adapter.settingsItemSeparation
+
     property alias fontWeight: adapter.fontWeight
     property alias fontScale: adapter.fontScale
     property alias focusRingEnabled: adapter.focusRingEnabled
     property alias focusRingWidth: adapter.focusRingWidth
     property alias focusRingColor: adapter.focusRingColor
+    property alias sidebarCentered: adapter.sidebarCentered
+
+    readonly property string sharedConfigDir: {
+        const xdg = Quickshell.env("XDG_CONFIG_HOME");
+        const base = (xdg && xdg !== "") ? xdg : Quickshell.env("HOME") + "/.config";
+        return base + "/DUX_Apps-JDK";
+    }
+    readonly property string sharedSettingsPath: sharedConfigDir + "/shared-appearance.json"
+    property bool _syncingShared: false
+    property string activeSettingsSearch: ""
+
+    readonly property var _sharedKeys: [
+        "themeMode", "colorSource", "presetTheme", "customThemeFile",
+        "radiusStrength", "animationDuration", "reduceMotion", "springBounce",
+        "enableRippleEffects", "density", "motionDuration", "fontSource",
+        "fontFamily", "monoFontFamily", "displayFontFamily", "windowTitleBars",
+        "floatingWindowTransparency", "floatingWindowForegroundLayers",
+        "floatingWindowForegroundTransparency", "blurEnabled",
+        "settingsItemSeparation", "fontWeight", "fontScale",
+        "focusRingEnabled", "focusRingWidth", "focusRingColor", "sidebarCentered"
+    ]
+
+    function _applySharedToLocal() {
+        if (!sharedFile._loaded) return;
+        _syncingShared = true;
+        for (let i = 0; i < _sharedKeys.length; i++) {
+            const k = _sharedKeys[i];
+            if (sharedAdapter[k] !== undefined && adapter[k] !== sharedAdapter[k]) {
+                adapter[k] = sharedAdapter[k];
+            }
+        }
+        _syncingShared = false;
+    }
+
+    function _pushLocalToShared() {
+        if (_syncingShared || !settingsFile._loaded || !sharedFile._loaded) return;
+        let changed = false;
+        _syncingShared = true;
+        for (let i = 0; i < _sharedKeys.length; i++) {
+            const k = _sharedKeys[i];
+            if (adapter[k] !== undefined && sharedAdapter[k] !== adapter[k]) {
+                sharedAdapter[k] = adapter[k];
+                changed = true;
+            }
+        }
+        _syncingShared = false;
+        if (changed) {
+            sharedFile._selfWrite = true;
+            sharedFile.writeAdapter();
+        }
+    }
 
     // Viewer preferences
     property alias autoHideControls: adapter.autoHideControls
     property alias showCheckerboard: adapter.showCheckerboard
+    property alias externalOpenFolderBehavior: adapter.externalOpenFolderBehavior
+    property alias libraryOpenBehavior: adapter.libraryOpenBehavior
+    property alias libraryDefaultTab: adapter.libraryDefaultTab
+    property alias videoPlayerRoundedCorners: adapter.videoPlayerRoundedCorners
+    property alias showFavoriteAlbumsInSidebar: adapter.showFavoriteAlbumsInSidebar
+    property alias videoGroupByDate: adapter.videoGroupByDate
 
     Component.onCompleted: {
         Paths.mkdir(configDir);
+        Paths.mkdir(sharedConfigDir);
     }
 
     FileView {
@@ -92,6 +163,7 @@ Singleton {
                 return;
             _selfWrite = true;
             writeAdapter();
+            root._pushLocalToShared();
         }
 
         JsonAdapter {
@@ -105,13 +177,93 @@ Singleton {
             property bool reduceMotion: false
             property int springBounce: 1
             property bool enableRippleEffects: true
+    property string density: 'comfortable'
+    property int motionDuration: 2
+    property string fontSource: 'auto'
+    property string fontFamily: ''
+    property string monoFontFamily: ''
+    property string displayFontFamily: ''
+    property bool windowTitleBars: true
+    property real floatingWindowTransparency: 1.0
+    property bool floatingWindowForegroundLayers: true
+    property real floatingWindowForegroundTransparency: 1.0
+    property bool blurEnabled: false
+    property bool settingsItemSeparation: true
+
             property int fontWeight: 400
             property real fontScale: 1.0
             property bool focusRingEnabled: true
             property real focusRingWidth: 1.5
             property string focusRingColor: "primary"
+            property bool sidebarCentered: false
             property bool autoHideControls: true
             property bool showCheckerboard: true
+            property string externalOpenFolderBehavior: "ask" // "ask", "all", "single"
+            property string libraryOpenBehavior: "single" // "single", "all"
+            property string libraryDefaultTab: "all" // "all", "playlists", "folders"
+            property bool videoPlayerRoundedCorners: true
+            property bool showFavoriteAlbumsInSidebar: false
+            property bool videoGroupByDate: false
+        }
+    }
+
+    FileView {
+        id: sharedFile
+        path: root.sharedSettingsPath
+        blockLoading: true
+        blockWrites: true
+        atomicWrites: true
+        watchChanges: true
+        printErrors: false
+
+        property bool _loaded: false
+        property bool _selfWrite: false
+
+        onLoaded: {
+            _loaded = true;
+            root._applySharedToLocal();
+        }
+        onLoadFailed: {
+            _loaded = true;
+            root._pushLocalToShared();
+        }
+        onFileChanged: {
+            if (_selfWrite) {
+                _selfWrite = false;
+                return;
+            }
+            reload();
+        }
+
+        JsonAdapter {
+            id: sharedAdapter
+            property string themeMode: "auto"
+            property string colorSource: "auto"
+            property string presetTheme: "blue"
+            property string customThemeFile: ""
+            property int radiusStrength: 50
+            property int animationDuration: 250
+            property bool reduceMotion: false
+            property int springBounce: 1
+            property bool enableRippleEffects: true
+            property string density: "comfortable"
+            property int motionDuration: 2
+            property string fontSource: "auto"
+            property string fontFamily: ""
+            property string monoFontFamily: ""
+            property string displayFontFamily: ""
+            property bool windowTitleBars: true
+            property real floatingWindowTransparency: 1.0
+            property bool floatingWindowForegroundLayers: true
+            property real floatingWindowForegroundTransparency: 1.0
+            property bool blurEnabled: false
+            property bool settingsItemSeparation: true
+            property int fontWeight: 400
+            property real fontScale: 1.0
+            property bool focusRingEnabled: true
+            property real focusRingWidth: 1.5
+            property string focusRingColor: "primary"
+            property bool sidebarCentered: false
         }
     }
 }

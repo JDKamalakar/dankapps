@@ -11,8 +11,8 @@ Rectangle {
     required property var windowControls
     property var targetWindow: null
 
-    implicitHeight: header.implicitHeight
-    color: Theme.withAlpha(Theme.cardSurface, 0.90)
+    implicitHeight: Math.max(header.implicitHeight, (Theme.densityLevel < 0 ? 36 : (Theme.densityLevel > 0 ? 52 : 44)))
+    color: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
     border.color: Theme.withAlpha(Theme.outlineVariant, 0.25)
     border.width: 1
 
@@ -20,8 +20,36 @@ Rectangle {
         id: header
         anchors.fill: parent
         controls: root.windowControls
-        title: VideoService.currentFileName || "DankVideo"
-        onCloseRequested: Qt.quit()
+        title: VideoService.currentFileName || "DUX Video Player"
+        onCloseRequested: {
+            if (SettingsData.closeBehavior === "quit") {
+                Qt.quit();
+            } else {
+                root.targetWindow?.close();
+            }
+        }
+
+        Row {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.spacingS + Theme.densityStepS
+
+            DIconButton {
+                iconName: "grid_view"
+                size: Theme.densityLevel < 0 ? "xs" : "s"
+                variant: "standard"
+                tooltipText: "Library"
+                Accessible.name: "Library"
+                onClicked: VideoService.returnToGallery()
+            }
+
+            DIconButton {
+                iconName: "settings"
+                size: Theme.densityLevel < 0 ? "xs" : "s"
+                variant: "standard"
+                tooltipText: "Settings"
+                Accessible.name: "Settings"
+                onClicked: VideoService.settingsOpen = !VideoService.settingsOpen
+            }
+        }
     }
 }
-

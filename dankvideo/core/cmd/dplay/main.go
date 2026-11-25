@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/AvengeMedia/dankvideo/core/internal/fs"
 	"github.com/AvengeMedia/dankvideo/core/internal/probe"
@@ -29,12 +30,16 @@ func findQuickshellDir(specified string) (string, error) {
 		}
 	}
 
-	candidates := []string{
-		"quickshell",
-		"../quickshell",
-		"../../quickshell",
-		"/usr/local/share/quickshell/dankvideo",
-		"/usr/share/quickshell/dankvideo",
+	var candidates []string
+
+	execPath, err := os.Executable()
+	if err == nil {
+		execDir := filepath.Dir(execPath)
+		candidates = append(candidates,
+			filepath.Join(execDir, "../quickshell"),
+			filepath.Join(execDir, "quickshell"),
+			filepath.Join(execDir, "../share/quickshell/dankvideo"),
+		)
 	}
 
 	if home, err := os.UserHomeDir(); err == nil {
@@ -43,15 +48,13 @@ func findQuickshellDir(specified string) (string, error) {
 		)
 	}
 
-	execPath, err := os.Executable()
-	if err == nil {
-		execDir := filepath.Dir(execPath)
-		candidates = append([]string{
-			filepath.Join(execDir, "../quickshell"),
-			filepath.Join(execDir, "quickshell"),
-			filepath.Join(execDir, "../share/quickshell/dankvideo"),
-		}, candidates...)
-	}
+	candidates = append(candidates,
+		"quickshell",
+		"../quickshell",
+		"../../quickshell",
+		"/usr/local/share/quickshell/dankvideo",
+		"/usr/share/quickshell/dankvideo",
+	)
 
 	for _, cand := range candidates {
 		abs, err := filepath.Abs(cand)
@@ -71,6 +74,8 @@ func main() {
 	showVersion := flag.Bool("v", false, "show version")
 	printInfo := flag.Bool("info", false, "print video metadata as JSON and exit")
 	printList := flag.Bool("list", false, "print directory video list as JSON and exit")
+	galleryFlag := flag.Bool("gallery", false, "print video gallery data as JSON and exit")
+	excludeFlag := flag.String("exclude", "", "comma-separated directory paths or names to exclude from gallery scanning")
 	restoreFlag := flag.Bool("restore", false, "restore trashed video and exit")
 
 	flag.Usage = func() {
@@ -83,6 +88,37 @@ func main() {
 
 	if *showVersion {
 		fmt.Printf("dplay version %s (built %s, commit %s)\n", Version, BuildTime, Commit)
+		return
+	}
+
+	if *galleryFlag {
+		rootDir := ""
+		var extraDirs []string
+		if flag.NArg() > 0 {
+			rootDir = flag.Arg(0)
+			for i := 1; i < flag.NArg(); i++ {
+				extraDirs = append(extraDirs, flag.Arg(i))
+			}
+		}
+
+		var excluded []string
+		if *excludeFlag != "" {
+			for _, part := range strings.Split(*excludeFlag, ",") {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					excluded = append(excluded, part)
+				}
+			}
+		}
+
+		data, err := fs.ScanVideoGallery(rootDir, excluded, extraDirs...)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error scanning video gallery: %v\n", err)
+			os.Exit(1)
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(data)
 		return
 	}
 

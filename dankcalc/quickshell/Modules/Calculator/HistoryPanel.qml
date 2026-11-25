@@ -33,10 +33,22 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         width: Math.min(300, parent.width * 0.85)
-        color: Theme.surfaceContainer
-        border.color: M3E.stroke(Theme.outlineVariant, M3E.strokePopup)
+        topLeftRadius: Theme.cornerRadiusXL
+        bottomLeftRadius: Theme.cornerRadiusXL
+        topRightRadius: 0
+        bottomRightRadius: 0
+        color: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+        border.color: Theme.withAlpha(Theme.outlineVariant, 0.25)
         border.width: 1
         clip: true
+
+        ElevationShadow {
+            anchors.fill: parent
+            z: -1
+            targetRadius: Theme.cornerRadiusXL
+            targetColor: parent.color
+            level: Style.elevationLevel3
+        }
 
         transform: Translate {
             x: root.open ? 0 : panel.width

@@ -10,11 +10,12 @@ import "."
 FloatingWindow {
     id: window
 
-    title: VideoService.currentFileName ? (VideoService.currentFileName + " — DankVideo") : "DankVideo"
+    title: VideoService.currentFileName ? (VideoService.currentFileName + " — DUX Video Player") : "DUX Video Player"
     minimumSize: Qt.size(480, 360)
     implicitWidth: 1050
     implicitHeight: 700
-    color: Theme.surfaceContainerLowest
+    color: Theme.windowSurface
+    surfaceFormat.opaque: false
     visible: true
 
     property bool showOverlays: true
@@ -120,11 +121,17 @@ FloatingWindow {
                 } else if (VideoService.inspectorOpen) {
                     VideoService.inspectorOpen = false;
                     event.accepted = true;
+                } else if (VideoService.isFullscreen) {
+                    VideoService.toggleFullscreen();
+                    event.accepted = true;
+                } else if (!VideoService.galleryMode) {
+                    VideoService.returnToGallery();
+                    event.accepted = true;
                 } else if (window.maximized) {
                     windowControls.tryToggleMaximize();
                     event.accepted = true;
                 } else {
-                    Qt.quit();
+                    event.accepted = true;
                 }
                 break;
             }
@@ -142,7 +149,15 @@ FloatingWindow {
             }
         }
 
-        FloatingWindowControls {
+        
+    WindowBlur {
+        targetWindow: window
+        blurEnabled: Theme.translucentWindows
+        blurWidth: window.width
+        blurHeight: window.height
+    }
+
+    FloatingWindowControls {
             id: windowControls
             targetWindow: window
         }
@@ -152,7 +167,7 @@ FloatingWindow {
             id: windowFrame
             anchors.fill: parent
             radius: window.maximized ? 0 : Theme.windowRadius
-            color: Theme.surfaceContainerLowest
+            color: Theme.windowSurface
             border.color: Theme.withAlpha(Theme.outlineVariant, 0.4)
             border.width: window.maximized ? 0 : 1
             clip: !window.maximized
@@ -160,6 +175,16 @@ FloatingWindow {
             // Main Video Canvas
             VideoCanvas {
                 anchors.fill: parent
+                visible: !VideoService.galleryMode
+            }
+
+            // Video Library / Gallery View
+            VideoGalleryView {
+                id: galleryView
+                anchors.fill: parent
+                windowControls: windowControls
+                targetWindow: window
+                visible: VideoService.galleryMode
             }
 
             // Dismiss inspector when clicking outside it
@@ -179,7 +204,7 @@ FloatingWindow {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                opacity: !VideoService.uiLocked && (window.showOverlays || VideoService.inspectorOpen) ? 1.0 : 0.0
+                opacity: !VideoService.galleryMode && !VideoService.uiLocked && (window.showOverlays || VideoService.inspectorOpen) ? 1.0 : 0.0
                 visible: opacity > 0
                 z: 40
 
@@ -202,7 +227,7 @@ FloatingWindow {
                 anchors.topMargin: 12
                 anchors.right: parent.right
                 anchors.rightMargin: 16
-                opacity: !VideoService.uiLocked && window.showOverlays && VideoService.currentFilePath !== "" && !VideoService.inspectorOpen ? 1.0 : 0.0
+                opacity: !VideoService.galleryMode && !VideoService.uiLocked && window.showOverlays && VideoService.currentFilePath !== "" && !VideoService.inspectorOpen ? 1.0 : 0.0
                 visible: opacity > 0
                 z: 40
 
@@ -224,7 +249,7 @@ FloatingWindow {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: 24
                 anchors.horizontalCenter: parent.horizontalCenter
-                opacity: !VideoService.uiLocked && window.showOverlays && VideoService.currentFilePath !== "" && !VideoService.inspectorOpen ? 1.0 : 0.0
+                opacity: !VideoService.galleryMode && !VideoService.uiLocked && window.showOverlays && VideoService.currentFilePath !== "" && !VideoService.inspectorOpen ? 1.0 : 0.0
                 visible: opacity > 0
                 z: 40
 
@@ -306,6 +331,29 @@ FloatingWindow {
                     }
                 }
             }
+
+            // Playlist Drawer (Side drawer)
+            PlaylistDrawer {
+                id: playlistDrawer
+                anchors.top: headerBar.bottom
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.rightMargin: VideoService.playlistDrawerOpen ? 0 : -width
+                visible: anchors.rightMargin > -width || VideoService.playlistDrawerOpen
+                z: 51
+
+                Behavior on anchors.rightMargin {
+                    DAnim {
+                        duration: Style.shortDuration
+                        easing.bezierCurve: Style.expressiveCurves.standard
+                    }
+                }
+            }
+
+            // Folder Play Prompt Modal
+            FolderPlayPrompt {
+                id: folderPlayPrompt
+            }
         }
     }
 
@@ -325,11 +373,26 @@ FloatingWindow {
         }
     }
 
+    FileBrowserModal {
+        id: addFolderModal
+        folderMode: true
+        browserTitle: "Add Video Folder"
+        browserIcon: "create_new_folder"
+        parentModal: window
+        onFileSelected: path => {
+            VideoService.addWatchedFolder(path);
+            close();
+        }
+    }
+
     Connections {
         target: VideoService
         function onOpenFileDialogRequested() {
             openVideoModal.revealPath = VideoService.currentFilePath || "";
             openVideoModal.open();
+        }
+        function onOpenAddFolderDialogRequested() {
+            addFolderModal.open();
         }
     }
 }

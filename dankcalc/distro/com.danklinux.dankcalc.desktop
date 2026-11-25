@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=DankCalc
+Name=DUX Calculator
 GenericName=Calculator
 Comment=Calculator for DMS
-Exec=dcalc %u
+Exec=sh -c "PATH=$HOME/.local/bin:$PATH exec dcalc \"$@\"" -- %u
 Icon=com.danklinux.dankcalc
 Terminal=false
 Type=Application

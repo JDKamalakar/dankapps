@@ -1,7 +1,7 @@
 [Desktop Entry]
-Name=DankVideo
+Name=DUX Video Player
 Comment=Video player for DMS
-Exec=dplay %F
+Exec=sh -c "PATH=$HOME/.local/bin:$PATH exec dplay \"$@\"" -- %F
 Icon=com.danklinux.dankvideo
 Terminal=false
 Type=Application

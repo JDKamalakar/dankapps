@@ -8,6 +8,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import qs.Common
+import qs.Widgets
 import qs.Services
 import qs.Modules.Clock
 import qs.DCommon.Common as DC
@@ -29,7 +30,7 @@ ShellRoot {
         DC.Style.theme = Theme;
         DC.Style.settings = SettingsData;
         DC.Paths.backend = Paths;
-        DC.Host.ownWindowDecorations = true;
+        DC.Host.ownWindowDecorations = Qt.binding(() => SettingsData.windowTitleBars);
     }
 
     function ownToplevel() {
@@ -66,7 +67,11 @@ ShellRoot {
         if (!windowLoader.item)
             return;
         if (root.pendingTab >= 0) {
-            ClockService.currentTabIndex = root.pendingTab;
+            if (root.pendingTab === 6) {
+                ClockService.settingsOpen = true;
+            } else {
+                ClockService.currentTabIndex = root.pendingTab;
+            }
             root.pendingTab = -1;
         }
         focusToplevel();
@@ -139,5 +144,10 @@ ShellRoot {
         function onWindowActionRequested(action, view) {
             root.handleWindowAction(action, view);
         }
+    }
+
+    SettingsModal {
+        parentWindow: windowLoader.item
+        id: appSettingsModal
     }
 }

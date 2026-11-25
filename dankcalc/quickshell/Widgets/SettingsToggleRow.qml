@@ -1,0 +1,46 @@
+import QtQuick
+import qs.Common
+import qs.DCommon.Widgets
+
+SettingsRow {
+    id: root
+
+    property string text: ""
+    property string description: ""
+    property color descriptionColor: Theme.surfaceVariantText
+    property bool checked: settingKey !== "" && SettingsData[settingKey] === true
+    property bool toggling: false
+
+    signal toggled(bool checked)
+
+    onToggled: checked => {
+        if (settingKey !== "")
+            SettingsData[settingKey] = checked;
+    }
+
+    title: text
+    subtitle: description
+    subtitleColor: descriptionColor
+    clickable: true
+    Accessible.role: Accessible.CheckBox
+    Accessible.checkable: true
+    Accessible.checked: checked
+    Accessible.onToggleAction: root.clicked()
+    onClicked: {
+        if (!enabled || toggling)
+            return;
+        toggled(!checked);
+    }
+
+    DToggle {
+        hideText: true
+        text: root.text
+        description: root.description
+        activeFocusOnTab: false
+        Accessible.ignored: true
+        checked: root.checked
+        enabled: root.enabled
+        toggling: root.toggling
+        onToggled: value => root.toggled(value)
+    }
+}

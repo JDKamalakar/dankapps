@@ -23,7 +23,7 @@ Item {
 
     readonly property var targetTileSizes: [100, 135, 170, 230, 320]
     readonly property int zoomIdx: Math.max(0, Math.min(4, (ImageService.galleryZoomLevel || 3) - 1))
-    readonly property int targetTileSize: targetTileSizes[zoomIdx]
+    readonly property int targetTileSize: SettingsData.galleryItemSize > 0 ? Math.round(SettingsData.galleryItemSize * (targetTileSizes[zoomIdx] / 170)) : targetTileSizes[zoomIdx]
     readonly property int columns: Math.max(1, Math.floor((width - 40) / targetTileSize))
     readonly property real tileWidth: Math.floor((width - 40 - (columns - 1) * 10) / columns)
 

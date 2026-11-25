@@ -8,20 +8,13 @@ import qs.DCommon.Widgets
 Item {
     id: root
 
-    readonly property var primaryItems: [
-        {
-            text: "Timeline",
-            icon: "timeline"
-        },
-        {
-            text: "Favorites",
-            icon: "favorite"
-        },
-        {
-            text: "Albums",
-            icon: "collections_bookmark"
-        }
-    ]
+    readonly property bool hasFavorites: ImageService.favoriteCount > 0
+    readonly property var primaryItems: {
+        const items = [{ text: "Timeline", icon: "timeline" }];
+        if (hasFavorites) items.push({ text: "Favorites", icon: "favorite" });
+        items.push({ text: "Albums", icon: "collections_bookmark" });
+        return items;
+    }
     readonly property var quickAccessItems: ImageService.quickAccessFolderAlbums.map(album => ({
                 text: album.name,
                 icon: "folder"
@@ -41,11 +34,11 @@ Item {
     ]
     readonly property int primaryIndex: {
         if (ImageService.galleryTab === "albums")
-            return 2;
+            return hasFavorites ? 2 : 1;
         if (ImageService.galleryTab !== "gallery" && ImageService.galleryTab !== "timeline")
             return -1;
         if (ImageService.selectedCategory === "Favorites")
-            return 1;
+            return hasFavorites ? 1 : -1;
         return ImageService.selectedCategory === "All" || !ImageService.selectedCategory ? 0 : -1;
     }
     readonly property int quickAccessIndex: {
@@ -66,10 +59,12 @@ Item {
         if (index === 0) {
             ImageService.selectedCategory = "All";
             ImageService.galleryTab = "gallery";
-        } else if (index === 1) {
+        } else if (hasFavorites && index === 1) {
             ImageService.selectedCategory = "Favorites";
             ImageService.galleryTab = "gallery";
-        } else if (index === 2) {
+        } else if (hasFavorites && index === 2) {
+            ImageService.galleryTab = "albums";
+        } else if (!hasFavorites && index === 1) {
             ImageService.galleryTab = "albums";
         }
     }
@@ -103,6 +98,11 @@ Item {
         anchors.rightMargin: Theme.spacingXS
         spacing: Theme.spacingS
 
+        Item {
+            Layout.fillHeight: true
+            visible: SettingsData.sidebarCentered
+        }
+
         DNavigationBar {
             id: primaryNavigation
 
@@ -121,7 +121,7 @@ Item {
 
             Layout.fillWidth: true
             Layout.preferredHeight: root.quickAccessHeadingHeight
-            visible: root.quickAccessItems.length > 0
+            visible: SettingsData.showQuickAccessInSidebar && root.quickAccessItems.length > 0
 
             StyledText {
                 anchors.left: parent.left
@@ -141,7 +141,7 @@ Item {
             Layout.minimumHeight: 0
             Layout.preferredHeight: Math.min(implicitHeight, root.quickAccessAvailableHeight)
             Layout.maximumHeight: root.quickAccessAvailableHeight
-            visible: root.quickAccessItems.length > 0
+            visible: SettingsData.showQuickAccessInSidebar && root.quickAccessItems.length > 0
             orientation: Qt.Vertical
             evenlySpaced: false
             spacing: Theme.spacingS

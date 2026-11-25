@@ -5,41 +5,43 @@ import qs.DCommon.Widgets
 Item {
     id: root
 
-    property string text: ""
-    property alias actions: actionsRow.data
-    property bool collapsible: false
-    property bool expanded: true
-    property real topGap: SettingsMetrics.sectionLabelTopGap
-    property real bottomGap: SettingsMetrics.sectionLabelBottomGap
+    readonly property bool isSettingsSectionLabel: true
 
-    signal toggleRequested
+    property string text: ""
+    property string iconName: ""
 
     Accessible.role: Accessible.StaticText
     Accessible.name: text
 
-    width: parent ? parent.width : 0
-    height: Math.max(label.implicitHeight, actionsRow.implicitHeight) + topGap + bottomGap
-
-    StyledText {
-        id: label
-        anchors.left: parent.left
-        anchors.leftMargin: Theme.spacingS
-        anchors.right: actionsRow.left
-        anchors.rightMargin: Theme.spacingS
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: (root.topGap - root.bottomGap) / 2
-        text: root.text
-        font.pixelSize: Theme.fontSizeMedium
-        font.weight: Theme.fontWeightMedium
-        color: Theme.primary
-        wrapMode: Text.WordWrap
-        horizontalAlignment: Text.AlignLeft
-    }
+    width: parent?.width ?? 0
+    height: Math.max(label.implicitHeight, icon.implicitHeight) + SettingsMetrics.sectionLabelTopGap + SettingsMetrics.sectionLabelBottomGap
 
     Row {
-        id: actionsRow
+        anchors.left: parent.left
         anchors.right: parent.right
-        anchors.verticalCenter: label.verticalCenter
-        spacing: Theme.spacingXS
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: (SettingsMetrics.sectionLabelTopGap - SettingsMetrics.sectionLabelBottomGap) / 2
+        spacing: Theme.spacingS
+
+        DIcon {
+            id: icon
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root.iconName !== ""
+            name: root.iconName
+            size: Theme.iconSizeSmall
+            color: Theme.primary
+        }
+
+        StyledText {
+            id: label
+            anchors.verticalCenter: parent.verticalCenter
+            width: root.iconName !== "" ? (parent.width - icon.width - parent.spacing) : parent.width
+            text: root.text
+            font.pixelSize: Theme.fontSizeMedium
+            font.weight: Theme.fontWeightMedium
+            color: Theme.primary
+            wrapMode: Text.WordWrap
+            horizontalAlignment: Text.AlignLeft
+        }
     }
 }

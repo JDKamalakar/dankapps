@@ -17,7 +17,7 @@ Item {
         id: header
         anchors.fill: parent
         controls: root.windowControls
-        title: ImageService.galleryMode ? "Gallery" : (ImageService.currentFileName || "DankView")
+        title: ImageService.galleryMode ? "Gallery" : (ImageService.currentFileName || "DUX Galary")
         onCloseRequested: root.closeRequested()
     }
 

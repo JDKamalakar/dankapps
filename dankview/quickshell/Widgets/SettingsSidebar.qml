@@ -1,6 +1,5 @@
 import QtQuick
 import qs.Common
-import qs.DCommon.Common
 import qs.DCommon.Widgets
 
 Item {
@@ -8,9 +7,54 @@ Item {
 
     property int currentIndex: 0
     property int highlightIndex: -1
-    property string filterText: ""
+    property var matchCounts: []
+    property bool fieldOnly: false
+    property alias query: searchField.text
+    readonly property var tabKeywords: [
+        "theme mode color source preset custom radius strength shape density spacious comfortable compact dense typography font scale weight title bar opacity transparency foreground layers blur separation sidebar center motion duration bounce ripple reduce focus ring thickness",
+        "auto hide controls checkerboard transparency viewer",
+        "landing page startup timeline favorites albums dynamic grid layout thumbnail size scan videos",
+        "add folder library watched rescan clear thumbnail cache",
+        "about version license github repository dux"
+    ]
+
+    onQueryChanged: {
+        SettingsData.activeSettingsSearch = query;
+        const q = query.trim().toLowerCase();
+        if (!q) {
+            matchCounts = [];
+            return;
+        }
+        const counts = [];
+        let firstMatch = -1;
+        for (let g = 0; g < groups.length; g++) {
+            for (let t = 0; t < groups[g].length; t++) {
+                const tab = groups[g][t];
+                const kw = (tabKeywords[tab.index] || "").toLowerCase();
+                const c = kw.indexOf(q) !== -1 ? 1 : 0;
+                counts[tab.index] = c;
+                if (c > 0 && firstMatch < 0) firstMatch = tab.index;
+            }
+        }
+        matchCounts = counts;
+        if ((counts[currentIndex] || 0) === 0 && firstMatch >= 0) {
+            tabSelected(firstMatch);
+        }
+    }
 
     signal tabSelected(int index)
+    signal searchAccepted
+
+    function focusSearch() {
+        searchField.forceActiveFocus();
+    }
+
+    function clearSearch() {
+        if (searchField.text === "")
+            return false;
+        searchField.text = "";
+        return true;
+    }
 
     function tabOrder() {
         return groups.reduce((all, group) => all.concat(group.map(tab => tab.index)), []);
@@ -39,16 +83,16 @@ Item {
         return true;
     }
 
-    readonly property var groups: [[
+        readonly property var groups: [[
             {
-                tone: "primary",
+                accent: "blue",
                 index: 0,
                 label: "Appearance",
-                hint: "Theme, scale and motion",
+                hint: "Theme, shape and motion",
                 icon: "palette"
             },
             {
-                tone: "primary",
+                accent: "blue",
                 index: 1,
                 label: "Image viewer",
                 hint: "Controls and backdrop",
@@ -56,15 +100,14 @@ Item {
             }
         ], [
             {
-                tone: "secondary",
+                accent: "green",
                 index: 2,
                 label: "Gallery",
                 hint: "Layout and startup section",
                 icon: "photo_library"
-            }
-        ], [
+            },
             {
-                tone: "secondary",
+                accent: "green",
                 index: 3,
                 label: "Library & folders",
                 hint: "Manage watched folders",
@@ -72,7 +115,7 @@ Item {
             }
         ], [
             {
-                tone: "tertiary",
+                accent: "purple",
                 index: 4,
                 label: "About",
                 hint: "Version, license and links",
@@ -81,27 +124,10 @@ Item {
         ]]
 
     implicitWidth: SettingsMetrics.sidebarWidth
-    width: implicitWidth
-
-    DSearchField {
-        id: searchField
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.leftMargin: SettingsMetrics.paneMargin
-        anchors.rightMargin: SettingsMetrics.paneMargin
-        height: 48
-        placeholderText: "Search settings"
-        onTextChanged: root.filterText = text.trim().toLowerCase()
-    }
+    implicitHeight: fieldOnly ? searchField.height + navColumn.padding * 2 : 0
 
     DFlickable {
-        id: flickable
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: searchField.bottom
-        anchors.bottom: parent.bottom
-        anchors.topMargin: Theme.spacingM
+        anchors.fill: parent
         clip: true
         contentWidth: width
         contentHeight: navColumn.height
@@ -109,18 +135,29 @@ Item {
         Column {
             id: navColumn
             width: parent.width
-            leftPadding: SettingsMetrics.paneMargin
-            rightPadding: SettingsMetrics.paneMargin
-            bottomPadding: SettingsMetrics.paneMargin
+            padding: SettingsMetrics.paneMargin
             spacing: SettingsMetrics.sidebarGroupGap
 
+            Item {
+                width: navColumn.width - navColumn.padding * 2
+                height: searchField.height + SettingsMetrics.searchBarGap - navColumn.spacing
+
+                DSearchField {
+                    id: searchField
+
+                    width: parent.width
+                    placeholderText: I18n.tr("Search settings", "placeholder in the settings search field")
+                    onAccepted: root.searchAccepted()
+                }
+            }
+
             Repeater {
-                model: root.groups
+                model: root.fieldOnly ? [] : root.groups
 
                 Column {
                     id: groupColumn
                     required property var modelData
-                    width: navColumn.width - navColumn.leftPadding - navColumn.rightPadding
+                    width: navColumn.width - navColumn.padding * 2
                     spacing: Theme.groupedListGap
 
                     Repeater {
@@ -129,19 +166,14 @@ Item {
                         SettingsSidebarItem {
                             required property var modelData
                             required property int index
-
-                            readonly property bool matchesFilter: root.filterText === "" ||
-                                modelData.label.toLowerCase().includes(root.filterText) ||
-                                (modelData.hint && modelData.hint.toLowerCase().includes(root.filterText))
-
-                            visible: matchesFilter
                             width: groupColumn.width
                             iconName: modelData.icon
                             title: modelData.label
-                            hint: modelData.hint ?? ""
-                            tone: modelData.tone ?? "primary"
+                            hint: modelData.hint
+                            accent: modelData.accent
                             active: root.currentIndex === modelData.index
                             highlighted: root.highlightIndex === modelData.index
+                            matchCount: root.matchCounts[modelData.index] ?? -1
                             isFirstInGroup: index === 0
                             isLastInGroup: index === groupColumn.modelData.length - 1
                             onActiveFocusChanged: {
@@ -153,6 +185,9 @@ Item {
                             Keys.onSpacePressed: event => event.accepted = root.selectHighlighted()
                             onClicked: {
                                 root.highlightIndex = -1;
+                                if ((SettingsData.activeSettingsSearch || "").trim() !== "" && (root.matchCounts[modelData.index] || 0) === 0) {
+                                    root.clearSearch();
+                                }
                                 root.tabSelected(modelData.index);
                             }
                         }

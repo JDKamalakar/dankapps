@@ -32,12 +32,16 @@ func findQuickshellDir(specified string) (string, error) {
 		}
 	}
 
-	candidates := []string{
-		"quickshell",
-		"../quickshell",
-		"../../quickshell",
-		"/usr/local/share/quickshell/dankview",
-		"/usr/share/quickshell/dankview",
+	var candidates []string
+
+	execPath, err := os.Executable()
+	if err == nil {
+		execDir := filepath.Dir(execPath)
+		candidates = append(candidates,
+			filepath.Join(execDir, "../quickshell"),
+			filepath.Join(execDir, "quickshell"),
+			filepath.Join(execDir, "../share/quickshell/dankview"),
+		)
 	}
 
 	if home, err := os.UserHomeDir(); err == nil {
@@ -46,15 +50,13 @@ func findQuickshellDir(specified string) (string, error) {
 		)
 	}
 
-	execPath, err := os.Executable()
-	if err == nil {
-		execDir := filepath.Dir(execPath)
-		candidates = append([]string{
-			filepath.Join(execDir, "../quickshell"),
-			filepath.Join(execDir, "quickshell"),
-			filepath.Join(execDir, "../share/quickshell/dankview"),
-		}, candidates...)
-	}
+	candidates = append(candidates,
+		"quickshell",
+		"../quickshell",
+		"../../quickshell",
+		"/usr/local/share/quickshell/dankview",
+		"/usr/share/quickshell/dankview",
+	)
 
 	for _, cand := range candidates {
 		abs, err := filepath.Abs(cand)
@@ -75,6 +77,7 @@ func main() {
 	printInfo := flag.Bool("info", false, "print image metadata as JSON and exit")
 	printList := flag.Bool("list", false, "print directory image list as JSON and exit")
 	printGallery := flag.Bool("gallery", false, "print gallery data as JSON and exit")
+	includeVideosFlag := flag.Bool("include-videos", false, "include videos in gallery scan")
 	excludeFlag := flag.String("exclude", "", "comma-separated directories to exclude from gallery scan")
 	restoreFlag := flag.Bool("restore", false, "restore trashed image and exit")
 
@@ -108,7 +111,7 @@ func main() {
 				}
 			}
 		}
-		data, err := fs.ScanGallery(dir, excludes, extraDirs...)
+		data, err := fs.ScanGalleryWithVideos(dir, *includeVideosFlag, excludes, extraDirs...)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error scanning gallery: %v\n", err)
 			os.Exit(1)

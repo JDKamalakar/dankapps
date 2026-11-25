@@ -12,7 +12,7 @@ Rectangle {
     implicitHeight: Style.buttonHeightM
     implicitWidth: contentRow.implicitWidth + Style.spacingL
     radius: height / 2
-    color: Style.withAlpha(Theme.cardSurface, 0.94)
+    color: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
     border.color: Theme.withAlpha(Theme.outlineVariant, 0.28)
     border.width: Style.outlineWidth
 
@@ -38,7 +38,7 @@ Rectangle {
         bottomLeftRadius: leftR
         topRightRadius: rightR
         bottomRightRadius: rightR
-        backgroundColor: segActive ? Theme.secondaryContainer : (hovered ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh)
+        backgroundColor: segActive ? Theme.secondaryContainer : (hovered ? Theme.foregroundColor(Theme.surfaceContainerHighest, true) : "transparent")
         iconColor: segActive ? Theme.primary : Theme.surfaceText
 
         Behavior on topLeftRadius { DAnim { duration: M3E.spatialFastMs; easing.bezierCurve: M3E.curveFastSpatial } }
@@ -84,25 +84,49 @@ Rectangle {
             onClicked: VideoService.toggleLockUI()
         }
 
-        // Counter badge e.g. "2 / 5" if playlist has multiple files
+        // Counter badge e.g. "2 / 5" if playlist has multiple files - Click opens Playlist Drawer
         Rectangle {
+            id: counterBadge
             visible: VideoService.fileList.length > 1
             implicitHeight: Style.buttonHeightXS
-            implicitWidth: counterText.implicitWidth + Style.spacingL
+            implicitWidth: counterRow.implicitWidth + Style.spacingM * 2
             radius: height / 2
-            color: Theme.surfaceContainerHighest
-            border.color: Theme.withAlpha(Theme.outlineVariant, 0.2)
+            color: counterMouse.containsMouse || VideoService.playlistDrawerOpen ? Theme.primaryContainer : Theme.foregroundColor(Theme.surfaceContainerHighest, true)
+            border.color: counterMouse.containsMouse || VideoService.playlistDrawerOpen ? Theme.primary : Theme.withAlpha(Theme.outlineVariant, 0.2)
             border.width: Style.outlineWidth
             Layout.alignment: Qt.AlignVCenter
             Layout.leftMargin: Style.spacingXS
 
-            StyledText {
-                id: counterText
+            Behavior on color {
+                DColorAnim { duration: Theme.shortDuration }
+            }
+
+            RowLayout {
+                id: counterRow
                 anchors.centerIn: parent
-                text: (VideoService.currentIndex + 1) + " / " + VideoService.fileList.length
-                font.pixelSize: Style.fontSizeSmall
-                font.weight: Font.Medium
-                color: Theme.surfaceVariantText
+                spacing: 4
+
+                DIcon {
+                    name: "playlist_play"
+                    size: 16
+                    color: counterBadge.color === Theme.primaryContainer ? Theme.primary : Theme.surfaceVariantText
+                }
+
+                StyledText {
+                    id: counterText
+                    text: (VideoService.currentIndex + 1) + " / " + VideoService.fileList.length
+                    font.pixelSize: Style.fontSizeSmall
+                    font.weight: Font.Medium
+                    color: counterBadge.color === Theme.primaryContainer ? Theme.primary : Theme.surfaceVariantText
+                }
+            }
+
+            MouseArea {
+                id: counterMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: VideoService.playlistDrawerOpen = !VideoService.playlistDrawerOpen
             }
         }
     }

@@ -61,16 +61,16 @@ FocusScope {
     Item {
         id: surface
         anchors.centerIn: parent
-        width: Math.max(0, Math.min(960, parent.width - 48))
-        height: Math.max(0, Math.min(700, parent.height - 48))
+        width: Math.max(0, Math.min(SettingsMetrics.windowWidth, parent.width - 48))
+        height: Math.max(0, Math.min(SettingsMetrics.windowHeight, parent.height - 48))
         scale: root.opened ? 1.0 : Style.popupEnterScale
         opacity: root.opened ? 1.0 : 0.0
 
         Behavior on scale {
             enabled: Theme.animationsEnabled
             DAnim {
-                duration: Style.expressiveDurations.expressiveDefaultSpatial
-                easing.bezierCurve: Style.expressiveCurves.expressiveDefaultSpatial
+                duration: Style.expressiveDurations.expressiveFastSpatial
+                easing.bezierCurve: Style.expressiveCurves.expressiveFastSpatial
             }
         }
 
@@ -85,76 +85,70 @@ FocusScope {
         ElevationShadow {
             anchors.fill: parent
             level: Style.elevationLevel3
-            targetRadius: Style.cornerRadiusXL
-            targetColor: SettingsMetrics.windowBgColor
-            borderWidth: Style.layerOutlineWidth
-            borderColor: Style.outlineMedium
-            shadowEnabled: Style.elevationEnabled
+            targetRadius: 16
+            targetColor: Theme.windowSurface
+            opacity: surface.opacity
         }
 
+        // Window Surface
         Rectangle {
-            id: surfaceBg
+            id: windowSurface
             anchors.fill: parent
-            radius: Style.cornerRadiusXL
-            color: SettingsMetrics.windowBgColor
-            border.width: Style.layerOutlineWidth
+            radius: 16
+            color: Theme.windowSurface
             border.color: Theme.outlineMedium
+            border.width: Style.layerOutlineWidth
             clip: true
-
-            MouseArea {
-                anchors.fill: parent
-            }
 
             Column {
                 anchors.fill: parent
                 spacing: 0
 
+                // Header
                 DWindowHeader {
                     id: header
                     width: parent.width
                     title: "Settings"
-                    titleAlignment: Text.AlignHCenter
-                    controls: null
-                    horizontalPadding: SettingsMetrics.paneMargin
-                    verticalPadding: Style.spacingM
-                    closeEnabled: true
                     onCloseRequested: root.close()
+                    controls: null
+                    horizontalPadding: Theme.spacingM
                 }
 
+                // Split Layout: Sidebar + Main Content Area
                 Item {
-                    id: body
                     width: parent.width
                     height: parent.height - header.height
-                    clip: true
 
+                    // Left Navigation Sidebar
                     SettingsSidebar {
                         id: sidebar
                         anchors.left: parent.left
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
                         width: SettingsMetrics.sidebarWidth
-                        currentIndex: settingsContent.currentIndex
-                        onTabSelected: index => settingsContent.currentIndex = index
+                        currentIndex: content.currentIndex
+                        onTabSelected: index => content.currentIndex = index
                     }
 
+                    // Content Pane Area
                     Rectangle {
-                        id: contentPane
                         anchors.left: sidebar.right
                         anchors.right: parent.right
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        anchors.leftMargin: Theme.spacingS
-                        anchors.rightMargin: SettingsMetrics.paneMargin
-                        anchors.bottomMargin: SettingsMetrics.paneMargin
-                        radius: SettingsMetrics.paneRadius
+                        anchors.rightMargin: Theme.spacingM
+                        anchors.bottomMargin: Theme.spacingM
+                        radius: 16
                         color: SettingsMetrics.paneColor
-                        border.width: Style.layerOutlineWidth
                         border.color: Theme.outlineMedium
-                        clip: true
+                        border.width: Style.layerOutlineWidth
 
                         SettingsContent {
-                            id: settingsContent
+                            id: content
                             anchors.fill: parent
+                            anchors.margins: SettingsMetrics.panePadding
+                            currentIndex: 0
+                            searchQuery: sidebar.query
                         }
                     }
                 }

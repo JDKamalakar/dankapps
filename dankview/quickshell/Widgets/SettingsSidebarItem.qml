@@ -1,6 +1,5 @@
 import QtQuick
 import qs.Common
-import qs.DCommon.Common
 import qs.DCommon.Widgets
 
 Rectangle {
@@ -9,18 +8,19 @@ Rectangle {
     property string iconName: ""
     property string title: ""
     property string hint: ""
-    property string tone: "primary"
+    property string accent: ""
     property bool active: false
     property bool highlighted: false
     property bool isFirstInGroup: true
     property bool isLastInGroup: true
+    property int matchCount: -1
 
     signal clicked
 
     activeFocusOnTab: enabled
     Accessible.role: Accessible.Button
     Accessible.name: title
-    Accessible.description: hint
+    Accessible.description: matchCount > 0 ? I18n.tr("%1, %2 matches", "accessible description of a settings page while searching, name then count").arg(hint).arg(matchCount) : hint
     Accessible.onPressAction: clicked()
 
     Keys.onPressed: event => {
@@ -34,52 +34,71 @@ Rectangle {
         }
     }
 
-    readonly property color toneColor: {
-        switch (tone) {
-        case "secondary":
-            return Theme.secondary;
-        case "tertiary":
-            return Theme.tertiary;
-        case "error":
-            return Theme.error;
-        default:
-            return Theme.primary;
-        }
-    }
+    readonly property var accentPair: (accent !== "" && typeof Theme.accent === "function") ? Theme.accent(accent) : null
+    readonly property color badgeColor: accentPair?.container ?? Theme.withAlpha(Theme.primary, Theme.tonalTintAlpha)
+    readonly property color glyphColor: accentPair?.onContainer ?? Theme.primary
+    readonly property real baseOuterRadius: Theme.groupedListOuterRadius ?? 16
+    readonly property real baseInnerRadius: Theme.groupedListInnerRadius ?? 4
+    readonly property real hoverRadius: baseOuterRadius + 3 * (SettingsData.radiusStrength !== undefined ? SettingsData.radiusStrength / 50.0 : 1.0)
+    readonly property real topRadius: (active || mouseArea.containsMouse) ? hoverRadius : (mouseArea.pressed ? (Theme.cornerRadiusS ?? 8) : (isFirstInGroup ? baseOuterRadius : baseInnerRadius))
+    readonly property real bottomRadius: (active || mouseArea.containsMouse) ? hoverRadius : (mouseArea.pressed ? (Theme.cornerRadiusS ?? 8) : (isLastInGroup ? baseOuterRadius : baseInnerRadius))
 
-    readonly property color badgeColor: active ? root.toneColor : Theme.withAlpha(root.toneColor, Theme.tonalTintAlpha)
-    readonly property color glyphColor: active ? Theme.onPrimary : root.toneColor
-
-    property real topRadius: active || isFirstInGroup ? Theme.groupedListOuterRadius : Theme.groupedListInnerRadius
-    property real bottomRadius: active || isLastInGroup ? Theme.groupedListOuterRadius : Theme.groupedListInnerRadius
-
-    Behavior on topRadius {
-        enabled: Theme.animationsEnabled
-        NumberAnimation {
-            duration: Theme.expressiveDurations.expressiveFastSpatial
-            easing.type: Easing.BezierSpline
-            easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
-        }
-    }
-
-    Behavior on bottomRadius {
-        enabled: Theme.animationsEnabled
-        NumberAnimation {
-            duration: Theme.expressiveDurations.expressiveFastSpatial
-            easing.type: Easing.BezierSpline
-            easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
-        }
-    }
-
-    width: parent ? parent.width : 0
+    width: parent?.width ?? 0
     height: Math.max(SettingsMetrics.navItemMinHeight, textColumn.implicitHeight + Theme.spacingS * 2)
+    opacity: ((SettingsData.activeSettingsSearch || "").trim() !== "" && matchCount === 0) ? 0.38 : 1.0
+    Behavior on opacity {
+        enabled: Theme.animationsEnabled
+        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+    }
     topLeftRadius: topRadius
     topRightRadius: topRadius
     bottomLeftRadius: bottomRadius
     bottomRightRadius: bottomRadius
-    color: active ? SettingsMetrics.selectedRowColor : SettingsMetrics.sidebarRowColor
-    border.width: Style.layerOutlineWidth
-    border.color: Theme.outlineMedium
+    border.width: root.activeFocus ? Math.max(2, Theme.focusRingWidth) : 1
+    border.color: root.activeFocus ? Theme.focusRingColor : ((root.active || mouseArea.containsMouse) ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant))
+
+    Behavior on topLeftRadius {
+        enabled: Theme.animationsEnabled
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
+    Behavior on topRightRadius {
+        enabled: Theme.animationsEnabled
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
+    Behavior on bottomLeftRadius {
+        enabled: Theme.animationsEnabled
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
+    Behavior on bottomRightRadius {
+        enabled: Theme.animationsEnabled
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
+    Behavior on border.color {
+        enabled: Theme.animationsEnabled
+        ColorAnimation {
+            duration: 180
+            easing.type: Easing.OutCubic
+        }
+    }
+    color: {
+        if (active)
+            return SettingsMetrics.selectedRowColor;
+        if (highlighted)
+            return Theme.blend(SettingsMetrics.sidebarRowColor, Theme.primary, SettingsMetrics.highlightBlend);
+        return SettingsMetrics.sidebarRowColor;
+    }
 
     Behavior on color {
         enabled: Theme.animationsEnabled
@@ -97,7 +116,7 @@ Rectangle {
         bottomLeftRadius: root.bottomRadius
         bottomRightRadius: root.bottomRadius
         color: Theme.surfaceText
-        opacity: mouseArea.pressed ? Theme.stateLayerPressed : (mouseArea.containsMouse || root.highlighted ? Theme.stateLayerHover : 0)
+        opacity: mouseArea.pressed ? Theme.stateLayerPressed : (mouseArea.containsMouse ? Theme.stateLayerHover : 0)
 
         Behavior on opacity {
             enabled: Theme.animationsEnabled
@@ -155,16 +174,27 @@ Rectangle {
             name: root.iconName
             size: Theme.iconSizeMedium
             color: root.glyphColor
-            filled: root.active
         }
+    }
+
+    StyledText {
+        id: countBadge
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.spacingL
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.matchCount > 0
+        text: root.matchCount
+        font.pixelSize: Theme.fontSizeSmall
+        font.weight: Theme.fontWeightMedium
+        color: Theme.primary
     }
 
     Column {
         id: textColumn
         anchors.left: iconCircle.right
         anchors.leftMargin: Theme.spacingM
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingL
+        anchors.right: countBadge.visible ? countBadge.left : parent.right
+        anchors.rightMargin: countBadge.visible ? Theme.spacingM : Theme.spacingL
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.spacingXXS
 
@@ -173,8 +203,8 @@ Rectangle {
             text: root.title
             font.pixelSize: Theme.fontSizeMedium
             font.weight: Theme.fontWeightMedium
-            color: root.active ? Theme.onSecondaryContainer : Theme.surfaceText
-            wrapMode: Text.WordWrap
+            color: root.active ? (Theme.onSelectedContainer ?? Theme.primary) : Theme.surfaceText
+            elide: Text.ElideRight
             horizontalAlignment: Text.AlignLeft
         }
 
@@ -182,8 +212,10 @@ Rectangle {
             width: parent.width
             text: root.hint
             font.pixelSize: Theme.fontSizeSmall
-            color: root.active ? Theme.onSecondaryContainer : Theme.surfaceVariantText
+            color: root.active ? (Theme.onSelectedContainer ?? Theme.primary) : Theme.surfaceVariantText
             wrapMode: Text.WordWrap
+            maximumLineCount: 2
+            elide: Text.ElideRight
             visible: root.hint !== ""
             horizontalAlignment: Text.AlignLeft
         }

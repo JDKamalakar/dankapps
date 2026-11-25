@@ -26,12 +26,12 @@ Singleton {
     readonly property real navIconSize: Theme.avatarSize
     readonly property real disabledOpacity: 0.42
     readonly property real highlightBlend: 0.2
-    readonly property color windowBgColor: Theme.surfaceContainerLowest
-    readonly property color paneColor: Theme.surfaceContainerLow
-    readonly property color rowColor: Theme.surfaceContainerHigh
+    readonly property color windowBgColor: Theme.windowSurface
+    readonly property color paneColor: Theme.foregroundColor(Theme.surfaceContainer, true)
+    readonly property color rowColor: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
     readonly property color rowHoverColor: Theme.surfaceContainerHighest
     readonly property color selectedRowColor: Theme.blend(rowColor, Theme.onSurface, Theme.stateLayerDrag)
-    readonly property color elevatedCardColor: Theme.surfaceContainerHigh
+    readonly property color elevatedCardColor: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
     readonly property int transitionDuration: Theme.expressiveDurations.expressiveFastSpatial
     readonly property int fadeDuration: Theme.expressiveDurations.expressiveEffects
     readonly property var curveFastSpatial: Style.expressiveCurves?.expressiveFastSpatial ?? [0.42, 1.67, 0.21, 0.9, 1, 1]

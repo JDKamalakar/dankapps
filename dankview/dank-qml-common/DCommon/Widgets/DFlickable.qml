@@ -31,6 +31,29 @@ Flickable {
     property real friction: Scroll.friction
     property bool _scrollBarActive: false
 
+    property real targetContentY: contentY
+    property bool smoothScrollEnabled: true
+
+    NumberAnimation {
+        id: smoothScrollAnim
+        target: flickable
+        property: "contentY"
+        duration: 180
+        easing.type: Easing.OutCubic
+    }
+
+    function scrollSmoothlyTo(newY) {
+        if (!smoothScrollEnabled) {
+            flickable.contentY = newY;
+            return;
+        }
+        targetContentY = newY;
+        smoothScrollAnim.stop();
+        smoothScrollAnim.from = flickable.contentY;
+        smoothScrollAnim.to = newY;
+        smoothScrollAnim.start();
+    }
+
     flickDeceleration: Scroll.flickDeceleration
     maximumFlickVelocity: Scroll.maximumFlickVelocity
     boundsBehavior: Flickable.StopAtBounds
@@ -81,14 +104,15 @@ Flickable {
 
                 const lines = Math.round(Math.abs(deltaY) / 120);
                 const scrollAmount = (deltaY > 0 ? -lines : lines) * flickable.mouseWheelSpeed;
-                let newY = flickable.contentY + scrollAmount;
+                const base = smoothScrollAnim.running ? flickable.targetContentY : flickable.contentY;
+                let newY = base + scrollAmount;
                 newY = Math.max(0, Math.min(flickable.contentHeight - flickable.height, newY));
 
                 if (flickable.flicking) {
                     flickable.cancelFlick();
                 }
 
-                flickable.contentY = newY;
+                flickable.scrollSmoothlyTo(newY);
             } else if (kind === WheelInput.Kind.highResWheel) {
                 sessionUsedMouseWheel = true;
                 momentumAnim.running = false;

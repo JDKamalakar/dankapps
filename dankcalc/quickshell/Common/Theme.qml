@@ -295,6 +295,18 @@ Singleton {
     property real spacingM: 12
     property real spacingL: 16
     property real spacingXL: 24
+    readonly property int densityLevel: {
+        switch (SettingsData.density) {
+        case "dense": return -2;
+        case "compact": return -1;
+        case "spacious": return 1;
+        default: return 0;
+        }
+    }
+    readonly property real densityStepS: densityLevel * spacingXS
+    readonly property real densityStepM: densityLevel * spacingS
+    readonly property real densityStepXS: densityLevel * spacingXXS
+
 
     readonly property string dmsSettingsPath: Paths.strip(Paths.home) + "/.config/DankMaterialShell/settings.json"
     property var dmsSettings: ({})
@@ -449,21 +461,30 @@ Singleton {
         return Math.max(Font.Thin, Math.min(Font.Black, weight + fontWeight - Font.Normal));
     }
 
-    readonly property real popupTransparency: 1.0
-    readonly property bool foregroundLayers: true
-    readonly property real foregroundLayerTransparency: 1.0
-    readonly property real foregroundAlpha: Surface.foregroundAlpha(foregroundLayers, foregroundLayerTransparency)
-    readonly property bool blurLayersActive: false
-    readonly property bool connectedSurfaceBlurEnabled: true
-
-    readonly property color floatingSurface: readableSurface
-    readonly property color nestedSurface: withAlpha(surfaceContainerHigh, foregroundAlpha)
-    readonly property real floatingWindowTransparency: popupTransparency
-    readonly property bool floatingWindowForegroundLayers: foregroundLayers
-    readonly property real floatingWindowForegroundTransparency: foregroundLayerTransparency
+    readonly property real floatingWindowTransparency: unitClamp(SettingsData.floatingWindowTransparency)
+    readonly property bool floatingWindowForegroundLayers: SettingsData.floatingWindowForegroundLayers
+    readonly property real floatingWindowForegroundTransparency: unitClamp(SettingsData.floatingWindowForegroundTransparency)
     readonly property real floatingWindowForegroundAlpha: Surface.foregroundAlpha(floatingWindowForegroundLayers, floatingWindowForegroundTransparency)
+    readonly property bool translucentWindows: floatingWindowTransparency < 1
+    readonly property real popupTransparency: floatingWindowTransparency
+    readonly property bool foregroundLayers: floatingWindowForegroundLayers
+    readonly property real foregroundLayerTransparency: floatingWindowForegroundTransparency
+    readonly property real foregroundAlpha: floatingWindowForegroundAlpha
+    readonly property bool blurLayersActive: SettingsData.blurEnabled
+    readonly property bool connectedSurfaceBlurEnabled: SettingsData.blurEnabled
+
+    readonly property color windowSurface: withAlpha(surfaceContainer, floatingWindowTransparency)
     readonly property color floatingWindowSurface: withAlpha(surfaceContainer, floatingWindowTransparency)
-    readonly property color floatingWindowNestedSurface: withAlpha(surfaceContainerHigh, floatingWindowForegroundAlpha)
+    readonly property color floatingSurface: withAlpha(surfaceContainer, popupTransparency)
+    readonly property color floatingWindowPaneSurface: withAlpha(surfaceContainerLow, floatingWindowForegroundAlpha)
+    readonly property color nestedSurface: foregroundColor(surfaceContainerHigh)
+    readonly property color floatingWindowNestedSurface: foregroundColor(surfaceContainerHigh, true)
+    function unitClamp(value) {
+        if (typeof value !== "number" || !isFinite(value))
+            return 1;
+        return Math.max(0, Math.min(1, value));
+    }
+
     readonly property color floatingWindowFieldColor: floatingWindowNestedSurface
     readonly property color floatingWindowFieldBorderColor: withAlpha(outline, 0.16)
     readonly property color floatingWindowFieldFocusedBorderColor: primary
@@ -702,4 +723,9 @@ Singleton {
             root.dmsSettingsLoaded = false;
         }
     }
+
+    function accent(name) {
+        return Style.accent(name);
+    }
+
 }

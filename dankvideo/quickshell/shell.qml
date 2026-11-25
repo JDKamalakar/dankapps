@@ -9,6 +9,7 @@ import Quickshell
 import qs.Common
 import qs.Services
 import qs.Modules.VideoPlayer
+import qs.Widgets
 import qs.DCommon.Common as DC
 
 ShellRoot {
@@ -26,9 +27,15 @@ ShellRoot {
         DC.Style.settings = SettingsData;
         DC.Paths.backend = Paths;
         DC.Host.files = FilesService;
+        DC.Host.ownWindowDecorations = Qt.binding(() => SettingsData.windowTitleBars);
     }
 
     VideoPlayerWindow {
         id: playerWindow
+    }
+
+    SettingsModal {
+        parentWindow: playerWindow
+        id: videoSettingsModal
     }
 }

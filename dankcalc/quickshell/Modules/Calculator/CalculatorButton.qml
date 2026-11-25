@@ -42,7 +42,7 @@ Item {
         id: bgRect
         anchors.fill: parent
         radius: stateLayer.pressed ? M3E.pressRadiusM : (root.activeState ? M3E.outerR : root.cornerRadius)
-        color: root.activeState ? Theme.primaryContainer : root.backgroundColor
+        color: Theme.foregroundColor(root.activeState ? Theme.primaryContainer : root.backgroundColor, true)
         scale: stateLayer.pressed ? M3E.iconBtnPressScale : 1.0
         opacity: root.enabled ? 1.0 : 0.28
 

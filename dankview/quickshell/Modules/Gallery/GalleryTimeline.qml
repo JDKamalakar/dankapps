@@ -109,7 +109,7 @@ Item {
 
     readonly property var targetTileSizes: [100, 135, 170, 230, 320]
     readonly property int zoomIdx: Math.max(0, Math.min(4, (ImageService.galleryZoomLevel || 3) - 1))
-    readonly property int targetTileSize: targetTileSizes[zoomIdx]
+    readonly property int targetTileSize: SettingsData.galleryItemSize > 0 ? Math.round(SettingsData.galleryItemSize * (targetTileSizes[zoomIdx] / 170)) : targetTileSizes[zoomIdx]
     readonly property int columns: Math.max(1, Math.floor((width - 40) / targetTileSize))
     readonly property real tileWidth: Math.floor((width - 40 - (columns - 1) * 10) / columns)
 
@@ -198,6 +198,8 @@ Item {
         anchors.leftMargin: 12
         anchors.rightMargin: 12
         clip: true
+        maximumFlickVelocity: 4500
+        flickDeceleration: 2200
         model: root.filteredGroups
         spacing: 24
         cacheBuffer: 400
@@ -553,15 +555,18 @@ Item {
                 Layout.preferredHeight: visible ? implicitHeight : 0
                 visible: SettingsData.galleryThumbnailLayout !== "masonry"
                 columns: root.columns
-                columnSpacing: 10
-                rowSpacing: 10
+                columnSpacing: Theme.spacingM
+                rowSpacing: Theme.spacingM
 
                 Repeater {
                     model: SettingsData.galleryThumbnailLayout === "masonry" ? [] : groupDelegate.groupImages
                     delegate: GalleryThumbnail {
+                        required property int index
                         flickable: null
                         imageItem: modelData
                         tileSize: root.tileWidth
+                        isFirstInGroup: (index % Math.max(1, root.columns)) === 0
+                        isLastInGroup: (index % Math.max(1, root.columns)) === Math.max(1, root.columns) - 1 || index === groupDelegate.groupImages.length - 1
                         navigationPaths: root.navigationPaths
                     }
                 }
@@ -574,7 +579,7 @@ Item {
                 model: SettingsData.galleryThumbnailLayout === "masonry" ? groupDelegate.groupImages : []
                 columns: root.columns
                 tileWidth: root.tileWidth
-                spacing: 10
+                spacing: Theme.spacingM
                 navigationPaths: root.navigationPaths
             }
         }

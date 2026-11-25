@@ -9,12 +9,39 @@ import qs.DCommon.Widgets
 Rectangle {
     id: root
 
-    height: 92
-    width: Math.min(680, parent.width - 48)
+    // Density layout: adjust controls width to cover almost entire width of the screen, proportional to density
+    readonly property real densityScale: Theme.densityLevel < 0 ? 0.85 : (Theme.densityLevel > 0 ? 1.15 : 1.0)
+    readonly property real basePadH: 20 + Theme.densityStepS * 2
+    readonly property real basePadV: 10 + Theme.densityStepS
+
+    // Density layout width:
+    // spacious: parent.width - 48 (covers screen almost completely)
+    // comfortable: Math.min(parent.width - 48, Math.max(760, parent.width * 0.88))
+    // compact: Math.min(parent.width - 48, Math.max(620, parent.width * 0.72))
+    // dense: Math.min(parent.width - 48, 560)
+    readonly property real controlsWidth: {
+        const fullW = parent.width - 48;
+        switch (SettingsData.density) {
+        case "spacious": return fullW;
+        case "compact": return Math.min(fullW, Math.max(620, parent.width * 0.72));
+        case "dense": return Math.min(fullW, 560);
+        default: return Math.min(fullW, Math.max(760, parent.width * 0.88));
+        }
+    }
+
+    height: Math.round(92 * densityScale)
+    width: Math.max(380, controlsWidth)
     radius: Style.cornerRadiusXL
-    color: Style.withAlpha(Style.surfaceContainerHigh, 0.95)
+    color: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
     border.color: M3E.stroke(Style.outlineVariant, M3E.strokeCard)
     border.width: 1
+
+    Behavior on width {
+        DAnim {
+            duration: Style.shortDuration
+            easing.bezierCurve: Style.expressiveCurves.standard
+        }
+    }
 
     ElevationShadow {
         anchors.fill: parent
@@ -26,13 +53,13 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.topMargin: 12
-        anchors.bottomMargin: 10
-        anchors.leftMargin: 20
-        anchors.rightMargin: 20
-        spacing: 6
+        anchors.topMargin: root.basePadV + 2
+        anchors.bottomMargin: root.basePadV
+        anchors.leftMargin: root.basePadH
+        anchors.rightMargin: root.basePadH
+        spacing: 4 + Theme.densityStepXS
 
-        // Scrubber / Seek Bar
+        // Scrubber / Seek Bar (M3WaveProgress without dot)
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
@@ -50,49 +77,21 @@ Rectangle {
                 Layout.fillWidth: true
                 height: 24
 
-                Rectangle {
+                M3WaveProgress {
+                    id: waveProgress
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    height: seekMouse.containsMouse || seekMouse.drag.active ? 8 : 4
-                    radius: height / 2
-                    color: Theme.surfaceContainerHighest
-
-                    Behavior on height {
-                        DAnim {
-                            duration: Style.shortDuration
-                            easing.bezierCurve: Style.expressiveCurves.standard
-                        }
-                    }
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        width: VideoService.duration > 0 ? parent.width * Math.max(0, Math.min(1, VideoService.position / VideoService.duration)) : 0
-                        radius: parent.radius
-                        color: Theme.primary
-                    }
-                }
-
-                // Handle thumb
-                Rectangle {
-                    x: (VideoService.duration > 0 ? (trackArea.width - width) * (VideoService.position / VideoService.duration) : 0)
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: seekMouse.containsMouse || seekMouse.drag.active ? 16 : 10
-                    height: width
-                    radius: width / 2
-                    color: Theme.primary
-                    border.color: Theme.surfaceContainerLowest
-                    border.width: 2
-                    visible: seekMouse.containsMouse || seekMouse.drag.active
-
-                    Behavior on width {
-                        DAnim {
-                            duration: Style.shortDuration
-                            easing.bezierCurve: Style.expressiveCurves.standard
-                        }
-                    }
+                    height: 20
+                    value: VideoService.duration > 0 ? Math.max(0, Math.min(1, VideoService.position / VideoService.duration)) : 0
+                    isPlaying: VideoService.isPlaying
+                    lineWidth: seekMouse.containsMouse || seekMouse.drag.active ? 4.0 : 3.0
+                    wavelength: 22
+                    amp: 2.2
+                    fillColor: Theme.primary
+                    playheadColor: Theme.primary
+                    trackColor: Theme.surfaceContainerHighest
+                    actualProgressColor: Theme.withAlpha(Theme.primary, 0.40)
                 }
 
                 MouseArea {
@@ -131,75 +130,106 @@ Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: Style.buttonHeightS
 
-            // Left cluster: Volume
-            RowLayout {
+            // Left cluster: Volume - Icon by default, expands to pill with slider + percentage on hover
+            Item {
+                id: volumeCluster
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.spacingS
+                width: volumeHoverArea.containsMouse || volSlider.visualFocus ? 190 : Style.iconButtonSize
+                height: Style.buttonHeightS
+                clip: false
 
-                DActionButton {
-                    iconName: VideoService.isMuted || VideoService.volume === 0 ? "volume_off" : (VideoService.volume < 0.5 ? "volume_down" : "volume_up")
-                    iconSize: Style.iconSizeMedium
-                    buttonSize: Style.buttonHeightS
-                    iconColor: Theme.surfaceText
-                    tooltipText: VideoService.isMuted ? "Unmute (M)" : "Mute (M)"
-                    tooltipSide: "top"
-                    onClicked: VideoService.toggleMute()
+                Behavior on width {
+                    DAnim {
+                        duration: Style.shortDuration
+                        easing.bezierCurve: Style.expressiveCurves.standard
+                    }
                 }
 
-                // Volume slider track
-                Item {
-                    Layout.preferredWidth: 72
-                    height: 24
-                    Layout.alignment: Qt.AlignVCenter
-                    visible: root.width >= 500
+                Rectangle {
+                    anchors.fill: parent
+                    radius: height / 2
+                    color: volumeHoverArea.containsMouse ? Theme.surfaceContainerHighest : "transparent"
+                    border.color: volumeHoverArea.containsMouse ? Theme.withAlpha(Theme.outlineVariant, 0.3) : "transparent"
+                    border.width: 1
 
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: volMouse.containsMouse ? 6 : 4
-                        radius: height / 2
-                        color: Theme.surfaceContainerHighest
-
-                        Behavior on height {
-                            DAnim {
-                                duration: Style.shortDuration
-                                easing.bezierCurve: Style.expressiveCurves.standard
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            width: parent.width * (VideoService.isMuted ? 0 : VideoService.volume)
-                            radius: parent.radius
-                            color: Theme.primary
-                        }
+                    Behavior on color {
+                        DColorAnim { duration: Theme.shortDuration }
+                    }
+                    Behavior on border.color {
+                        DColorAnim { duration: Theme.shortDuration }
                     }
 
-                    MouseArea {
-                        id: volMouse
+                    RowLayout {
                         anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onPressed: mouse => {
-                            VideoService.setVolume(mouse.x / width);
+                        anchors.leftMargin: 4
+                        anchors.rightMargin: 8
+                        spacing: 6
+
+                        DActionButton {
+                            id: volIconBtn
+                            iconName: VideoService.isMuted || VideoService.volume === 0 ? "volume_off" : (VideoService.volume < 0.5 ? "volume_down" : "volume_up")
+                            iconSize: Style.iconSize
+                            buttonSize: Style.buttonHeightS - 4
+                            iconColor: Theme.surfaceText
+                            tooltipText: VideoService.isMuted ? "Unmute" : "Mute"
+                            tooltipSide: "top"
+                            onClicked: VideoService.toggleMute()
                         }
-                        onPositionChanged: mouse => {
-                            if (pressed) {
-                                VideoService.setVolume(mouse.x / width);
+
+                        // Slider appears on hover
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 24
+                            visible: volumeCluster.width > Style.iconButtonSize + 40
+                            opacity: visible ? 1.0 : 0.0
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 150 }
+                            }
+
+                            DSlider {
+                                id: volSlider
+                                anchors.fill: parent
+                                minimum: 0
+                                maximum: 100
+                                value: VideoService.isMuted ? 0 : Math.round(VideoService.volume * 100)
+                                size: "s"
+                                showValue: false
+                                fillColor: Theme.primary
+                                trackColor: Theme.surfaceContainerLow
+                                onSliderValueChanged: newValue => {
+                                    VideoService.setVolume(newValue / 100);
+                                }
                             }
                         }
+
+                        // Percentage indicator
+                        StyledText {
+                            visible: volumeCluster.width > Style.iconButtonSize + 40
+                            opacity: visible ? 1.0 : 0.0
+                            text: (VideoService.isMuted ? "0" : Math.round(VideoService.volume * 100)) + "%"
+                            font.family: Theme.monoFontFamily
+                            font.pixelSize: Style.fontSizeSmall - 1
+                            font.weight: Font.Medium
+                            color: Theme.surfaceVariantText
+                            Layout.alignment: Qt.AlignVCenter
+                        }
                     }
+                }
+
+                MouseArea {
+                    id: volumeHoverArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
                 }
             }
 
             // Playback cluster (strictly centered)
             RowLayout {
                 anchors.centerIn: parent
-                spacing: Style.spacingS
+                spacing: Style.spacingS + Theme.densityStepXS
 
                 // Step Back 10s
                 DActionButton {
@@ -224,7 +254,7 @@ Rectangle {
                     onClicked: VideoService.prevVideo()
                 }
 
-                // Play / Pause main button — M3E shape-morphing button (circle when paused -> squircle when playing/pressed)
+                // Play / Pause main button — M3E shape-morphing button
                 Rectangle {
                     width: Style.buttonHeightS
                     height: Style.buttonHeightS
@@ -295,62 +325,40 @@ Rectangle {
                 }
             }
 
-            // Right cluster: Playback speed chip (M3E morphing chip)
-            Rectangle {
+            // Right cluster: Speed indicator label + dropdown button without scroll
+            Row {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                implicitHeight: Style.buttonHeightXS
-                implicitWidth: Math.max(Style.buttonMinWidth, speedText.implicitWidth + Style.spacingL)
-                radius: speedMouse.pressed ? M3E.pressRadiusXS : height / 2
-                scale: speedMouse.pressed ? M3E.iconBtnPressScale : 1.0
-                color: VideoService.playbackRate !== 1.0
-                    ? Theme.secondaryContainer
-                    : (speedMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainerLow)
-                border.color: Theme.withAlpha(Theme.outlineVariant, 0.25)
-                border.width: VideoService.playbackRate !== 1.0 ? 0 : Style.outlineWidth
+                spacing: 4
 
-                Behavior on radius {
-                    DAnim {
-                        duration: M3E.spatialFastMs
-                        easing.bezierCurve: M3E.curveFastSpatial
+                DDropdown {
+                    id: speedDropdown
+                    showLabel: true
+                    dropdownWidth: 88
+                    popupWidth: 104
+                    maxPopupHeight: 600 // Large enough to fit all 11 speed items without scroll
+                    openUpwards: true
+                    options: ["0.25x", "0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "1.75x", "2.0x", "2.5x", "3.0x", "4.0x"]
+                    optionValues: ["0.25", "0.5", "0.75", "1.0", "1.25", "1.5", "1.75", "2.0", "2.5", "3.0", "4.0"]
+                    currentValue: {
+                        const r = VideoService.playbackRate;
+                        if (r === 0.25) return "0.25";
+                        if (r === 0.5) return "0.5";
+                        if (r === 0.75) return "0.75";
+                        if (r === 1.25) return "1.25";
+                        if (r === 1.5) return "1.5";
+                        if (r === 1.75) return "1.75";
+                        if (r === 2.0) return "2.0";
+                        if (r === 2.5) return "2.5";
+                        if (r === 3.0) return "3.0";
+                        if (r === 4.0) return "4.0";
+                        return "1.0";
                     }
-                }
-
-                Behavior on scale {
-                    DAnim {
-                        duration: M3E.spatialFastMs
-                        easing.bezierCurve: M3E.curveFastSpatial
-                    }
-                }
-
-                Behavior on color {
-                    DColorAnim {
-                        duration: M3E.effectsFastMs
-                        easing.bezierCurve: M3E.curveFastEffects
-                    }
-                }
-
-                StyledText {
-                    id: speedText
-                    anchors.centerIn: parent
-                    text: VideoService.playbackRate + "x"
-                    font.family: Theme.monoFontFamily
-                    font.pixelSize: Style.fontSizeSmall
-                    font.weight: Font.Medium
-                    color: VideoService.playbackRate !== 1.0 ? Theme.onSecondaryContainer : Theme.surfaceText
-                }
-
-                MouseArea {
-                    id: speedMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (VideoService.playbackRate === 1.0) VideoService.playbackRate = 1.25;
-                        else if (VideoService.playbackRate === 1.25) VideoService.playbackRate = 1.5;
-                        else if (VideoService.playbackRate === 1.5) VideoService.playbackRate = 2.0;
-                        else if (VideoService.playbackRate === 2.0) VideoService.playbackRate = 0.5;
-                        else VideoService.playbackRate = 1.0;
+                    onValueChanged: val => {
+                        const parsed = parseFloat(val);
+                        if (!isNaN(parsed) && parsed > 0) {
+                            VideoService.playbackRate = parsed;
+                        }
                     }
                 }
             }

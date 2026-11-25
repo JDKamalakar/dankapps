@@ -8,11 +8,15 @@ SettingsRow {
     property string text: ""
     property string description: ""
     property color descriptionColor: Theme.surfaceVariantText
-    property bool checked: false
+    property bool checked: settingKey !== "" && SettingsData[settingKey] === true
     property bool toggling: false
-    property alias accessory: accessorySlot.data
 
     signal toggled(bool checked)
+
+    onToggled: checked => {
+        if (settingKey !== "")
+            SettingsData[settingKey] = checked;
+    }
 
     title: text
     subtitle: description
@@ -28,15 +32,7 @@ SettingsRow {
         toggled(!checked);
     }
 
-    Row {
-        id: accessorySlot
-        spacing: Theme.spacingS
-        visible: children.length > 0
-        anchors.verticalCenter: parent.verticalCenter
-    }
-
     DToggle {
-        anchors.verticalCenter: parent.verticalCenter
         hideText: true
         text: root.text
         description: root.description

@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=DankView
+Name=DUX Galary
 Comment=Image viewer for Dux Shell
 GenericName=Image Viewer
-Exec=dview %F
+Exec=sh -c "PATH=$HOME/.local/bin:$PATH exec dview \"$@\"" -- %F
 Icon=com.danklinux.dankview
 Terminal=false
 Type=Application

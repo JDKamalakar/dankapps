@@ -10,14 +10,19 @@ Rectangle {
     id: root
 
     width: 380
-    color: Style.withAlpha(Theme.cardSurface, 0.96)
+    topLeftRadius: Theme.cornerRadiusXL
+    bottomLeftRadius: Theme.cornerRadiusXL
+    topRightRadius: 0
+    bottomRightRadius: 0
+    color: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
     border.color: Theme.withAlpha(Theme.outlineVariant, 0.25)
     border.width: 1
+    clip: true
 
     ElevationShadow {
         anchors.fill: parent
         z: -1
-        targetRadius: parent.radius
+        targetRadius: Theme.cornerRadiusXL
         targetColor: parent.color
         level: Style.elevationLevel3
     }

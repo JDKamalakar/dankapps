@@ -12,12 +12,13 @@ FloatingWindow {
     id: window
 
     title: CalculatorService.settingsOpen
-        ? "Settings — DankCalc"
-        : (CalculatorService.currentMode === "converter" ? "Unit Converter — DankCalc" : "Calculator — DankCalc")
-    minimumSize: Qt.size(300, 360)
-    implicitWidth: 380
+        ? "Settings — DUX Calculator"
+        : (CalculatorService.currentMode === "converter" ? "Unit Converter — DUX Calculator" : "Calculator — DUX Calculator")
+    minimumSize: Qt.size(380, 360)
+    implicitWidth: 460
     implicitHeight: CalculatorService.currentMode === "converter" ? 560 : (scientificOpen ? 640 : 520)
-    color: Theme.surfaceContainerLowest
+    color: Theme.windowSurface
+    surfaceFormat.opaque: false
     visible: true
 
     readonly property bool isLandscape: window.width >= 540 && window.width > window.height * 1.05
@@ -130,8 +131,6 @@ FloatingWindow {
                         CalculatorService.categoryMenuOpen = false;
                     } else if (CalculatorService.menuOpen) {
                         CalculatorService.menuOpen = false;
-                    } else {
-                        Qt.quit();
                     }
                     event.accepted = true;
                     return;
@@ -228,15 +227,21 @@ FloatingWindow {
                     CalculatorService.historyOpen = false;
                 } else if (CalculatorService.expression !== "") {
                     CalculatorService.clear();
-                } else {
-                    Qt.quit();
                 }
                 event.accepted = true;
                 break;
             }
         }
 
-        FloatingWindowControls {
+        
+    WindowBlur {
+        targetWindow: window
+        blurEnabled: Theme.translucentWindows
+        blurWidth: window.width
+        blurHeight: window.height
+    }
+
+    FloatingWindowControls {
             id: windowControls
             targetWindow: window
         }
@@ -246,7 +251,7 @@ FloatingWindow {
             id: windowFrame
             anchors.fill: parent
             radius: window.maximized ? 0 : Theme.windowRadius
-            color: Theme.surfaceContainerLowest
+            color: Theme.windowSurface
             border.color: M3E.stroke(Theme.outlineVariant, M3E.strokeCard)
             border.width: window.maximized ? 0 : 1
 
@@ -269,26 +274,94 @@ FloatingWindow {
                     }
                 }
 
-                // Mode & Action Row
-                Item {
+                RowLayout {
                     Layout.fillWidth: true
-                    implicitHeight: Style.buttonHeightS
-                    visible: !CalculatorService.settingsOpen
+                    Layout.fillHeight: true
+                    spacing: 0
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.spacingM
-                        anchors.rightMargin: Theme.spacingM
+                    // Persistent Left Sidebar
+                    Item {
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: Style.navigationRailWidth
 
-                        DIconButton {
-                            iconName: "menu"
-                            size: "s"
-                            variant: "standard"
-                            tooltipText: "Menu"
-                            onClicked: CalculatorService.menuOpen = !CalculatorService.menuOpen
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.topMargin: Theme.spacingS
+                            anchors.bottomMargin: Theme.spacingS
+                            spacing: 0
+
+                            Item {
+                                Layout.fillHeight: true
+                                visible: SettingsData.sidebarCentered
+                            }
+
+                            DNavigationBar {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: implicitHeight
+                                Layout.alignment: Qt.AlignTop
+                                orientation: Qt.Vertical
+                                evenlySpaced: false
+                                spacing: Theme.spacingS
+                                labelFontSize: Theme.fontSizeMedium
+                                model: [
+                                    { icon: "calculate", text: "Calculator" },
+                                    { icon: "swap_horiz", text: "Converter" }
+                                ]
+                                currentIndex: CalculatorService.currentMode === "calculator" ? 0 : 1
+                                onActivated: index => {
+                                    CalculatorService.setMode(index === 0 ? "calculator" : "converter");
+                                    rootContent.forceActiveFocus();
+                                }
+                            }
+
+                            Item { Layout.fillHeight: true }
+
+                            DNavigationBar {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: implicitHeight
+                                orientation: Qt.Vertical
+                                evenlySpaced: false
+                                spacing: Theme.spacingS
+                                labelFontSize: Theme.fontSizeMedium
+                                model: [{ icon: "settings", text: "Settings" }]
+                                currentIndex: CalculatorService.settingsOpen ? 0 : -1
+                                onActivated: {
+                                    CalculatorService.settingsOpen = true;
+                                    rootContent.forceActiveFocus();
+                                }
+                            }
                         }
+                    }
 
-                        // Calculator Mode: RAD / DEG Chip (Next to Menu)
+                    // Main Content Foreground Container
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.leftMargin: Theme.spacingXS
+                        Layout.rightMargin: Theme.spacingM
+                        Layout.topMargin: Theme.spacingXS
+                        Layout.bottomMargin: Theme.spacingM
+                        radius: Theme.cornerRadiusXL
+                        color: Theme.foregroundColor(Theme.surfaceContainer, true)
+                        border.width: 1
+                        border.color: Theme.withAlpha(Theme.outlineVariant, 0.25)
+                        clip: true
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 0
+
+                        // Mode & Action Row
+                        Item {
+                            Layout.fillWidth: true
+                            implicitHeight: Style.buttonHeightS
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: Theme.spacingM
+                                anchors.rightMargin: Theme.spacingM
+
+                                // Calculator Mode: RAD / DEG Chip
                         Rectangle {
                             visible: CalculatorService.currentMode === "calculator"
                             implicitHeight: Style.buttonHeightXS
@@ -394,7 +467,7 @@ FloatingWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     spacing: 0
-                    visible: !CalculatorService.settingsOpen && CalculatorService.currentMode === "calculator"
+                    visible: CalculatorService.currentMode === "calculator"
 
                     // Display Area
                     CalculatorDisplay {
@@ -478,23 +551,15 @@ FloatingWindow {
                 ConverterView {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    visible: !CalculatorService.settingsOpen && CalculatorService.currentMode === "converter"
+                    visible: CalculatorService.currentMode === "converter"
                 }
-
-                // Settings Page
-                SettingsView {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    visible: CalculatorService.settingsOpen
-                }
+                        } // End ColumnLayout
+                    } // End Main Content Foreground Container
+                } // End RowLayout
             }
         }
 
         // Overlay Panels
-        ModeMenu {
-            id: modeMenu
-        }
-
         CategoryMenu {
             id: categoryMenu
         }

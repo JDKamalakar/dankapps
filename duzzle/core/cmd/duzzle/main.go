@@ -26,12 +26,16 @@ func findQuickshellDir(specified string) (string, error) {
 		}
 	}
 
-	candidates := []string{
-		"quickshell",
-		"../quickshell",
-		"../../quickshell",
-		"/usr/local/share/quickshell/duzzle",
-		"/usr/share/quickshell/duzzle",
+	var candidates []string
+
+	execPath, err := os.Executable()
+	if err == nil {
+		execDir := filepath.Dir(execPath)
+		candidates = append(candidates,
+			filepath.Join(execDir, "../quickshell"),
+			filepath.Join(execDir, "quickshell"),
+			filepath.Join(execDir, "../share/quickshell/duzzle"),
+		)
 	}
 
 	if home, err := os.UserHomeDir(); err == nil {
@@ -40,15 +44,13 @@ func findQuickshellDir(specified string) (string, error) {
 		)
 	}
 
-	execPath, err := os.Executable()
-	if err == nil {
-		execDir := filepath.Dir(execPath)
-		candidates = append([]string{
-			filepath.Join(execDir, "../quickshell"),
-			filepath.Join(execDir, "quickshell"),
-			filepath.Join(execDir, "../share/quickshell/duzzle"),
-		}, candidates...)
-	}
+	candidates = append(candidates,
+		"quickshell",
+		"../quickshell",
+		"../../quickshell",
+		"/usr/local/share/quickshell/duzzle",
+		"/usr/share/quickshell/duzzle",
+	)
 
 	for _, cand := range candidates {
 		abs, err := filepath.Abs(cand)

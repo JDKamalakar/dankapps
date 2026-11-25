@@ -7,6 +7,7 @@
 import QtQuick
 import Quickshell
 import qs.Common
+import qs.Widgets
 import qs.Services
 import qs.Modules.Calculator
 import qs.DCommon.Common as DC
@@ -25,9 +26,15 @@ ShellRoot {
         DC.Style.theme = Theme;
         DC.Style.settings = SettingsData;
         DC.Paths.backend = Paths;
+        DC.Host.ownWindowDecorations = Qt.binding(() => SettingsData.windowTitleBars);
     }
 
     CalculatorWindow {
         id: calcWindow
+    }
+
+    SettingsModal {
+        parentWindow: calcWindow
+        id: appSettingsModal
     }
 }

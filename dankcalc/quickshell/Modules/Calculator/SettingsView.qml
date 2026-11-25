@@ -1,406 +1,159 @@
-pragma ComponentBehavior: Bound
-
 import QtQuick
-import QtQuick.Layouts
 import qs.Common
 import qs.Services
 import qs.DCommon.Common
 import qs.DCommon.Widgets
+import qs.Widgets
 
 Item {
     id: root
 
-    component SettingsSectionLabel: StyledText {
-        Layout.fillWidth: true
-        Layout.topMargin: Theme.spacingS
-        Layout.bottomMargin: Theme.spacingXXS
-        Layout.leftMargin: Theme.spacingXS
-        font.pixelSize: Theme.fontSizeSmall
-        font.weight: Font.DemiBold
-        color: Theme.primary
-    }
+    property int currentTabIndex: 0
+    property bool isCompactMode: width < SettingsMetrics.compactBreakpoint
+    property bool menuVisible: false
+    readonly property bool compactSearch: isCompactMode && menuVisible && content.searchQuery !== ""
 
-    component SettingsRow: Rectangle {
-        id: rowRoot
-
-        property string iconName: ""
-        property string title: ""
-        property string subtitle: ""
-        property bool isFirst: false
-        property bool isLast: false
-        property bool clickable: false
-        default property alias trailing: trailingSlot.data
-        property alias body: bodySlot.data
-
-        signal clicked()
-
-        Layout.fillWidth: true
-        implicitHeight: rowCol.implicitHeight + Theme.spacingM * 2
-        topLeftRadius: isFirst ? Theme.groupedListOuterRadius : Theme.groupedListInnerRadius
-        topRightRadius: isFirst ? Theme.groupedListOuterRadius : Theme.groupedListInnerRadius
-        bottomLeftRadius: isLast ? Theme.groupedListOuterRadius : Theme.groupedListInnerRadius
-        bottomRightRadius: isLast ? Theme.groupedListOuterRadius : Theme.groupedListInnerRadius
-        color: rowMouse.containsMouse && clickable ? Theme.surfaceContainerHigh : Theme.surfaceContainer
-
-        Behavior on color {
-            DColorAnim { duration: Theme.shortDuration }
-        }
-
-        MouseArea {
-            id: rowMouse
-            anchors.fill: parent
-            enabled: rowRoot.clickable
-            hoverEnabled: rowRoot.clickable
-            cursorShape: rowRoot.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: rowRoot.clicked()
-        }
-
-        ColumnLayout {
-            id: rowCol
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: Theme.spacingM
-            anchors.rightMargin: Theme.spacingM
-            spacing: Theme.spacingS
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.spacingM
-
-                DIcon {
-                    visible: rowRoot.iconName !== ""
-                    name: rowRoot.iconName
-                    size: Style.iconSizeMedium
-                    color: Theme.primary
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 2
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: rowRoot.title
-                        font.pixelSize: Theme.fontSizeMedium
-                        font.weight: Font.Medium
-                        color: Theme.surfaceText
-                        wrapMode: Text.WordWrap
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        visible: rowRoot.subtitle !== ""
-                        text: rowRoot.subtitle
-                        font.pixelSize: Theme.fontSizeSmall
-                        color: Theme.surfaceVariantText
-                        wrapMode: Text.WordWrap
-                    }
-                }
-
-                RowLayout {
-                    id: trailingSlot
-                    spacing: Theme.spacingS
-                }
-            }
-
-            ColumnLayout {
-                id: bodySlot
-                Layout.fillWidth: true
-                visible: children.length > 0
-                spacing: Theme.spacingXS
-            }
-        }
-    }
-
-    ColumnLayout {
+    FocusScope {
         anchors.fill: parent
-        spacing: 0
+        focus: true
 
-        // Settings Header Row
-        Item {
-            Layout.fillWidth: true
-            implicitHeight: Style.buttonHeightS
+        readonly property bool isFloatingWindowSurface: true
+        readonly property color surfaceColor: Theme.windowSurface
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Theme.spacingM
-                anchors.rightMargin: Theme.spacingM
-                spacing: Theme.spacingS
-
-                DIconButton {
-                    iconName: "arrow_back"
-                    size: "s"
-                    variant: "standard"
-                    tooltipText: "Back"
-                    onClicked: CalculatorService.settingsOpen = false
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Escape) {
+                if (!sidebar.clearSearch() && !sidebar.clearHighlight()) {
+                    CalculatorService.settingsOpen = false;
                 }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: "Settings"
-                    font.pixelSize: Theme.fontSizeLarge
-                    font.weight: Font.DemiBold
-                    color: Theme.surfaceText
-                }
+                event.accepted = true;
+                return;
             }
+            if (contentScope.activeFocus || !sidebar.visible)
+                return;
+            switch (event.key) {
+            case Qt.Key_Down:
+            case Qt.Key_J:
+                sidebar.moveHighlight(1);
+                break;
+            case Qt.Key_Up:
+            case Qt.Key_K:
+                sidebar.moveHighlight(-1);
+                break;
+            case Qt.Key_Return:
+            case Qt.Key_Enter:
+                if (!sidebar.selectHighlighted())
+                    return;
+                break;
+            default:
+                return;
+            }
+            event.accepted = true;
         }
 
-        // Scrollable Settings Body
-        DFlickable {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-            contentWidth: width
-            contentHeight: settingsCol.implicitHeight + Theme.spacingL * 2
+        Column {
+            anchors.fill: parent
+            spacing: 0
 
-            ColumnLayout {
-                id: settingsCol
-                width: Math.min(540, parent.width - Theme.spacingL * 2)
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top
-                anchors.topMargin: Theme.spacingS
-                spacing: Theme.groupedListGap
+            // Header bar
+            Item {
+                width: parent.width
+                height: Style.buttonHeightS + Theme.spacingS * 2
 
-                // ── Calculator ────────────────────────────────────────────────
-                SettingsSectionLabel {
-                    text: "Calculator"
-                    Layout.topMargin: 0
-                }
+                Row {
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.spacingM
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingS
 
-                SettingsRow {
-                    iconName: "architecture"
-                    title: "Angle unit"
-                    subtitle: "Unit used for trigonometric functions"
-                    isFirst: true
+                    DIconButton {
+                        iconName: "arrow_back"
+                        size: "s"
+                        variant: "standard"
+                        tooltipText: "Back to Calculator"
+                        onClicked: CalculatorService.settingsOpen = false
+                    }
 
-                    DButtonGroup {
-                        selectionMode: "single"
-                        size: "small"
-                        checkEnabled: false
-                        model: ["Rad", "Deg"]
-                        currentIndex: SettingsData.angleUnitRad ? 0 : 1
-                        onSelectionChanged: (idx, sel) => {
-                            if (sel)
-                                SettingsData.angleUnitRad = (idx === 0);
-                        }
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Settings"
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.weight: Font.DemiBold
+                        color: Theme.surfaceText
                     }
                 }
 
-                SettingsRow {
-                    iconName: "functions"
-                    title: "Scientific keypad"
-                    subtitle: "Keep scientific functions expanded in portrait mode"
-                    clickable: true
-                    onClicked: SettingsData.scientificExpanded = !SettingsData.scientificExpanded
+                DActionButton {
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.spacingM
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: root.isCompactMode
+                    iconName: "menu"
+                    buttonSize: Theme.buttonHeightXXS
+                    Accessible.name: "Menu"
+                    onClicked: root.menuVisible = !root.menuVisible
+                }
+            }
 
-                    DToggle {
-                        hideText: true
-                        checked: SettingsData.scientificExpanded
-                        onToggled: chk => SettingsData.scientificExpanded = chk
+            // Main settings split container
+            Item {
+                width: parent.width
+                height: parent.height - (Style.buttonHeightS + Theme.spacingS * 2)
+                clip: true
+
+                Rectangle {
+                    anchors.fill: sidebar
+                    color: SettingsMetrics.sidebarColor
+                    visible: sidebar.visible && color.a > 0
+                }
+
+                SettingsSidebar {
+                    id: sidebar
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: root.compactSearch ? undefined : parent.bottom
+                    height: root.compactSearch ? implicitHeight : undefined
+                    width: root.isCompactMode ? parent.width : implicitWidth
+                    visible: root.isCompactMode ? root.menuVisible : true
+                    fieldOnly: root.compactSearch
+                    currentIndex: root.currentTabIndex
+                    onTabSelected: index => {
+                        root.currentTabIndex = index;
+                        sidebar.clearSearch();
+                        if (root.isCompactMode)
+                            root.menuVisible = false;
                     }
                 }
 
-                SettingsRow {
-                    iconName: "history"
-                    title: "Calculation history"
-                    subtitle: CalculatorService.history.length > 0
-                        ? `${CalculatorService.history.length} saved expressions`
-                        : "No saved expressions"
-                    isLast: true
+                FocusScope {
+                    id: contentScope
 
-                    DButton {
-                        text: "Clear"
-                        buttonHeight: Style.buttonHeightXS
-                        backgroundColor: Theme.surfaceContainerHighest
-                        textColor: Theme.error
-                        enabled: CalculatorService.history.length > 0
-                        onClicked: CalculatorService.clearHistory()
-                    }
-                }
+                    anchors.left: root.isCompactMode ? (root.menuVisible && !root.compactSearch ? sidebar.right : parent.left) : sidebar.right
+                    anchors.right: parent.right
+                    anchors.top: root.compactSearch ? sidebar.bottom : parent.top
+                    anchors.bottom: parent.bottom
 
-                // ── Appearance ────────────────────────────────────────────────
-                SettingsSectionLabel {
-                    text: "Appearance"
-                }
+                    Rectangle {
+                        anchors.fill: parent
+                        color: SettingsMetrics.paneColor
 
-                SettingsRow {
-                    iconName: "palette"
-                    title: "Theme mode"
-                    subtitle: "Follow DMS colors or force light/dark"
-                    isFirst: true
-
-                    DButtonGroup {
-                        selectionMode: "single"
-                        size: "small"
-                        checkEnabled: false
-                        model: ["Auto", "Light", "Dark"]
-                        currentIndex: {
-                            switch (SettingsData.themeMode) {
-                            case "light": return 1;
-                            case "dark": return 2;
-                            default: return 0;
-                            }
-                        }
-                        onSelectionChanged: (idx, sel) => {
-                            if (!sel)
-                                return;
-                            const modes = ["auto", "light", "dark"];
-                            SettingsData.themeMode = modes[idx];
+                        Rectangle {
+                            anchors.left: parent.left
+                            width: Theme.layerOutlineWidth
+                            height: parent.height
+                            color: Theme.outlineMedium
+                            visible: width > 0 && !root.isCompactMode
                         }
                     }
-                }
 
-                SettingsRow {
-                    iconName: "color_lens"
-                    title: "Color source"
-                    subtitle: Theme.dmsColorsAvailable
-                        ? "Use DMS dynamic colors or a built-in preset"
-                        : "DMS colors unavailable — using preset"
+                    SettingsContent {
+                        id: content
 
-                    DButtonGroup {
-                        selectionMode: "single"
-                        size: "small"
-                        checkEnabled: false
-                        model: ["DMS", "Preset"]
-                        currentIndex: SettingsData.colorSource === "preset" ? 1 : 0
-                        onSelectionChanged: (idx, sel) => {
-                            if (sel)
-                                SettingsData.colorSource = idx === 1 ? "preset" : "auto";
-                        }
+                        anchors.fill: parent
+                        anchors.leftMargin: SettingsMetrics.panePadding
+                        anchors.rightMargin: SettingsMetrics.panePadding
+                        currentIndex: root.currentTabIndex
+                        searchQuery: sidebar.query
                     }
-                }
-
-                SettingsRow {
-                    visible: SettingsData.colorSource === "preset" || !Theme.dmsColorsAvailable
-                    iconName: "format_color_fill"
-                    title: "Preset theme"
-                    subtitle: Theme.presetLabel(SettingsData.presetTheme)
-
-                    body: [
-                        Flow {
-                            Layout.fillWidth: true
-                            spacing: Theme.spacingS
-
-                            Repeater {
-                                model: Theme.presetNames()
-
-                                Rectangle {
-                                    id: swatchItem
-                                    required property string modelData
-                                    readonly property bool selected: SettingsData.presetTheme === modelData
-
-                                    width: 26
-                                    height: 26
-                                    radius: width / 2
-                                    color: Theme.presetColors(modelData).primary
-                                    border.width: selected ? 2 : 1
-                                    border.color: selected ? Theme.surfaceText : Theme.outlineVariant
-
-                                    DIcon {
-                                        anchors.centerIn: parent
-                                        visible: swatchItem.selected
-                                        name: "check"
-                                        size: 14
-                                        color: Theme.presetColors(swatchItem.modelData).primaryText
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: SettingsData.presetTheme = swatchItem.modelData
-                                    }
-                                }
-                            }
-                        }
-                    ]
-                }
-
-                SettingsRow {
-                    iconName: "rounded_corner"
-                    title: "Corner roundness"
-                    subtitle: `Shape scale (${SettingsData.radiusStrength}%)`
-
-                    body: [
-                        DSlider {
-                            Layout.fillWidth: true
-                            size: "s"
-                            minimum: 0
-                            maximum: 100
-                            step: 5
-                            unit: "%"
-                            value: SettingsData.radiusStrength
-                            onSliderValueChanged: v => SettingsData.radiusStrength = v
-                        }
-                    ]
-                }
-
-                SettingsRow {
-                    iconName: "text_fields"
-                    title: "Text scale"
-                    subtitle: `Interface font size (${Math.round(SettingsData.fontScale * 100)}%)`
-                    isLast: true
-
-                    body: [
-                        DSlider {
-                            Layout.fillWidth: true
-                            size: "s"
-                            minimum: 85
-                            maximum: 125
-                            step: 5
-                            unit: "%"
-                            value: Math.round(SettingsData.fontScale * 100)
-                            onSliderValueChanged: v => SettingsData.fontScale = v / 100.0
-                        }
-                    ]
-                }
-
-                // ── Motion & Interaction ──────────────────────────────────────
-                SettingsSectionLabel {
-                    text: "Motion & Interaction"
-                }
-
-                SettingsRow {
-                    iconName: "touch_app"
-                    title: "Interactive ripples"
-                    subtitle: "Show Material ripple effects on button presses"
-                    isFirst: true
-                    clickable: true
-                    onClicked: SettingsData.enableRippleEffects = !SettingsData.enableRippleEffects
-
-                    DToggle {
-                        hideText: true
-                        checked: SettingsData.enableRippleEffects
-                        onToggled: chk => SettingsData.enableRippleEffects = chk
-                    }
-                }
-
-                SettingsRow {
-                    iconName: "motion_photos_off"
-                    title: "Reduce motion"
-                    subtitle: "Minimize animations and spatial transitions"
-                    isLast: true
-                    clickable: true
-                    onClicked: SettingsData.reduceMotion = !SettingsData.reduceMotion
-
-                    DToggle {
-                        hideText: true
-                        checked: SettingsData.reduceMotion
-                        onToggled: chk => SettingsData.reduceMotion = chk
-                    }
-                }
-
-                // ── About ─────────────────────────────────────────────────────
-                SettingsSectionLabel {
-                    text: "About"
-                }
-
-                SettingsRow {
-                    iconName: "calculate"
-                    title: "DankCalc"
-                    subtitle: "Material 3 calculator & unit converter for DankMaterialShell"
-                    isFirst: true
-                    isLast: true
                 }
             }
         }

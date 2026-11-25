@@ -37,7 +37,7 @@ var exifBufPool = sync.Pool{
 	},
 }
 
-// GalleryImage represents a single image with metadata for the gallery.
+// GalleryImage represents a single image or video with metadata for the gallery.
 type GalleryImage struct {
 	Path      string `json:"path"`
 	Thumbnail string `json:"thumbnail"`
@@ -46,6 +46,7 @@ type GalleryImage struct {
 	SortTime  int64  `json:"sortTime"`
 	DateGroup string `json:"dateGroup"`
 	Category  string `json:"category"`
+	IsVideo   bool   `json:"isVideo"`
 }
 
 // GalleryGroup groups images under a specific date header (e.g., "Today", "Yesterday").
@@ -81,6 +82,20 @@ func GetPicturesDir() string {
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		return filepath.Join(home, "Pictures")
+	}
+	return ""
+}
+
+// GetVideosDir returns the user's Videos directory or fallback ~/Videos.
+func GetVideosDir() string {
+	if out, err := exec.Command("xdg-user-dir", "VIDEOS").Output(); err == nil {
+		dir := strings.TrimSpace(string(out))
+		if dir != "" && dir != "/" {
+			return dir
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, "Videos")
 	}
 	return ""
 }
@@ -334,6 +349,7 @@ func addGalleryImage(
 		SortTime:  actualTime.Unix(),
 		DateGroup: computeDateGroup(actualTime, today, yesterday),
 		Category:  category,
+		IsVideo:   IsSupportedVideo(path),
 	}
 
 	categorySet[category] = true
@@ -356,6 +372,7 @@ func tryScanWithDsearch(
 	isExcluded func(string) bool,
 	seenCanonical map[string]bool,
 	seenInodes map[fileID]bool,
+	includeVideos bool,
 ) ([]GalleryImage, map[string]*GalleryAlbum, map[string]bool, bool) {
 	dsearchBin, err := exec.LookPath("dsearch")
 	if err != nil {
@@ -389,7 +406,7 @@ func tryScanWithDsearch(
 
 	for _, hit := range res.Hits {
 		p := filepath.Clean(hit.ID)
-		if isExcluded(p) || !IsSupportedImage(p) {
+		if isExcluded(p) || !IsSupportedMedia(p, includeVideos) {
 			continue
 		}
 		canon := canonicalPath(p)
@@ -426,8 +443,29 @@ func tryScanWithDsearch(
 // ScanGallery scans rootDir and its subdirectories (plus any extraDirs) for images,
 // ignoring any directories in excludedDirs, and organizes them into GalleryData.
 func ScanGallery(rootDir string, excludedDirs []string, extraDirs ...string) (*GalleryData, error) {
+	return ScanGalleryWithVideos(rootDir, false, excludedDirs, extraDirs...)
+}
+
+// ScanGalleryWithVideos scans rootDir and subdirectories for images and optionally videos.
+func ScanGalleryWithVideos(rootDir string, includeVideos bool, excludedDirs []string, extraDirs ...string) (*GalleryData, error) {
 	if rootDir == "" {
 		rootDir = GetPicturesDir()
+	}
+
+	if includeVideos {
+		vDir := GetVideosDir()
+		if vDir != "" {
+			alreadyIn := false
+			for _, ed := range extraDirs {
+				if canonicalPath(ed) == canonicalPath(vDir) {
+					alreadyIn = true
+					break
+				}
+			}
+			if !alreadyIn && canonicalPath(rootDir) != canonicalPath(vDir) {
+				extraDirs = append(extraDirs, vDir)
+			}
+		}
 	}
 
 	absRoot, err := filepath.Abs(rootDir)
@@ -477,7 +515,7 @@ func ScanGallery(rootDir string, excludedDirs []string, extraDirs ...string) (*G
 
 	if !isExcluded(absRoot) {
 		// Try danksearch (dsearch) first for instant indexing results
-		if dsearchImages, dsearchAlbums, dsearchCats, ok := tryScanWithDsearch(absRoot, thumbDir, today, yesterday, isExcluded, seenCanonical, seenInodes); ok {
+		if dsearchImages, dsearchAlbums, dsearchCats, ok := tryScanWithDsearch(absRoot, thumbDir, today, yesterday, isExcluded, seenCanonical, seenInodes, includeVideos); ok {
 			allImages = dsearchImages
 			albumMap = dsearchAlbums
 			categorySet = dsearchCats
@@ -545,7 +583,7 @@ func ScanGallery(rootDir string, excludedDirs []string, extraDirs ...string) (*G
 					return nil
 				}
 
-				if !IsSupportedImage(path) {
+				if !IsSupportedMedia(path, includeVideos) {
 					return nil
 				}
 
@@ -640,7 +678,7 @@ func ScanGallery(rootDir string, excludedDirs []string, extraDirs ...string) (*G
 				return nil
 			}
 
-			if !IsSupportedImage(path) {
+			if !IsSupportedMedia(path, includeVideos) {
 				return nil
 			}
 
@@ -666,6 +704,7 @@ func ScanGallery(rootDir string, excludedDirs []string, extraDirs ...string) (*G
 				SortTime:  actualTime.Unix(),
 				DateGroup: computeDateGroup(actualTime, today, yesterday),
 				Category:  albumName,
+				IsVideo:   IsSupportedVideo(path),
 			}
 			allImages = append(allImages, img)
 			return nil

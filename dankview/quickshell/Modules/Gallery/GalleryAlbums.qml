@@ -264,12 +264,23 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: Style.spacingXXS
+                    visible: root.effectiveQuickAccess.length > 0 || root.editMode
 
-                    StyledText {
-                        text: "Quick Access"
-                        font.pixelSize: Theme.fontSizeLarge
-                        font.weight: Theme.fontWeightBold
-                        color: Theme.surfaceText
+                    RowLayout {
+                        spacing: Style.spacingS
+
+                        DIcon {
+                            name: "bolt"
+                            size: Theme.iconSizeMedium
+                            color: Theme.primary
+                        }
+
+                        StyledText {
+                            text: "Quick Access"
+                            font.pixelSize: Theme.fontSizeLarge
+                            font.weight: Theme.fontWeightBold
+                            color: Theme.surfaceText
+                        }
                     }
 
                     StyledText {
@@ -371,11 +382,21 @@ Item {
                 spacing: Style.spacingM
                 visible: root.filteredFolders.length > 0 || root.editMode || !root.query
 
-                StyledText {
-                    text: "Folders"
-                    font.pixelSize: Theme.fontSizeLarge
-                    font.weight: Theme.fontWeightBold
-                    color: Theme.surfaceText
+                RowLayout {
+                    spacing: Style.spacingS
+
+                    DIcon {
+                        name: "folder"
+                        size: Theme.iconSizeMedium
+                        color: Theme.primary
+                    }
+
+                    StyledText {
+                        text: "Folders"
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.weight: Theme.fontWeightBold
+                        color: Theme.surfaceText
+                    }
                 }
 
                 Flow {

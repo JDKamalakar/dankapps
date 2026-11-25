@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtMultimedia
 import Quickshell
+import Quickshell.Widgets
 import qs.Common
 import qs.Services
 import qs.DCommon.Common
@@ -33,7 +34,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: Theme.surfaceContainerLowest
+        color: "transparent"
     }
 
     MediaPlayer {
@@ -66,7 +67,7 @@ Item {
         }
 
         Component.onCompleted: {
-            if (root.hasVideo) {
+            if (root.hasVideo && !VideoService.folderPlayPromptOpen) {
                 player.play();
             }
         }
@@ -89,17 +90,36 @@ Item {
             }
         }
         function onCurrentFilePathChanged() {
-            if (root.hasVideo) {
+            if (root.hasVideo && !VideoService.folderPlayPromptOpen) {
                 player.play();
             }
         }
     }
 
-    VideoOutput {
-        id: videoOutput
+    Item {
         anchors.fill: parent
-        fillMode: VideoOutput.PreserveAspectFit
         visible: root.hasVideo
+
+        ClippingRectangle {
+            id: videoClipRect
+            x: videoOutput.contentRect.width > 0 ? videoOutput.contentRect.x : 0
+            y: videoOutput.contentRect.height > 0 ? videoOutput.contentRect.y : 0
+            width: videoOutput.contentRect.width > 0 ? videoOutput.contentRect.width : parent.width
+            height: videoOutput.contentRect.height > 0 ? videoOutput.contentRect.height : parent.height
+            color: "transparent"
+            radius: SettingsData.videoPlayerRoundedCorners
+                ? Math.max(8, Math.round(Math.min(width, height) / 48))
+                : 0
+
+            VideoOutput {
+                id: videoOutput
+                x: -videoClipRect.x
+                y: -videoClipRect.y
+                width: root.width
+                height: root.height
+                fillMode: VideoOutput.PreserveAspectFit
+            }
+        }
     }
 
     MouseArea {

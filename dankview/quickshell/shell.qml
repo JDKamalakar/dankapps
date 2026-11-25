@@ -7,6 +7,7 @@
 import QtQuick
 import Quickshell
 import qs.Common
+import qs.Widgets
 import qs.Services
 import qs.Modules.ImageViewer
 import qs.DCommon.Common as DC
@@ -26,9 +27,15 @@ ShellRoot {
         DC.Style.settings = SettingsData;
         DC.Paths.backend = Paths;
         DC.Host.files = FilesService;
+        DC.Host.ownWindowDecorations = Qt.binding(() => SettingsData.windowTitleBars);
     }
 
     ImageViewerWindow {
         id: viewerWindow
+    }
+
+    SettingsModal {
+        parentWindow: viewerWindow
+        id: appSettingsModal
     }
 }

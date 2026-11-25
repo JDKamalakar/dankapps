@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Effects
 import qs.Common
 import qs.Services
 import qs.DCommon.Common
@@ -80,42 +81,147 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacingM
         radius: Style.cornerRadiusL
-        color: Theme.surfaceContainer
+        color: Theme.foregroundColor(Theme.surfaceContainer, true)
         border.color: M3E.stroke(Theme.outlineVariant, M3E.strokeDivider)
         border.width: Style.outlineWidth
         clip: true
 
-        // Floating M3E Search Bar Pill (Overlays content, collapses to right on scroll)
-        Rectangle {
-            id: searchPill
-            readonly property int expandedWidth: Math.min(440, mainArea.width - 48)
-            readonly property int collapsedWidth: 48
+        // Floating M3E Search Bar + Segmented Action Buttons (Refresh -> Search -> Filter)
+        Item {
+            id: searchBarGroup
+            readonly property int expandedSearchWidth: Math.min(380, mainArea.width - refreshPill.width - filterPill.width - 64)
+            readonly property int collapsedSearchWidth: 48
             readonly property bool isCollapsed: ImageService.searchBarCollapsed && ImageService.searchQuery === ""
+            property real pillGap: isCollapsed ? Math.max(2, Math.round(Theme.spacingXS * 0.5)) : Theme.spacingS
+            readonly property real totalWidth: refreshPill.width + pillGap + (isCollapsed ? collapsedSearchWidth : expandedSearchWidth) + pillGap + filterPill.width
+
+            Behavior on pillGap {
+                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+            }
+
+            // In-window backdrop blur behind floating search & pills
+            ShaderEffectSource {
+                id: searchBackdropSource
+                sourceItem: contentContainer
+                sourceRect: Qt.rect(searchBarGroup.x, searchBarGroup.y, searchBarGroup.width, searchBarGroup.height)
+                visible: false
+                live: true
+            }
+
+            MultiEffect {
+                anchors.fill: parent
+                source: searchBackdropSource
+                blurEnabled: true
+                blur: 0.65
+                blurMax: 32
+                visible: true
+                z: -1
+            }
 
             anchors.top: parent.top
             anchors.topMargin: 16
             anchors.right: parent.right
-            anchors.rightMargin: isCollapsed ? 16 : Math.round((mainArea.width - expandedWidth) / 2)
-            width: isCollapsed ? collapsedWidth : expandedWidth
+            anchors.rightMargin: isCollapsed ? 16 : Math.max(16, Math.round((mainArea.width - totalWidth) / 2))
+            width: totalWidth
             height: 48
-            radius: height / 2
             z: 30
             visible: ImageService.galleryTab !== "settings"
-                color: searchInput.activeFocus ? Theme.surfaceContainerHighest : (isCollapsed && collapsedMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh)
-                border.color: searchInput.activeFocus ? Theme.primary : M3E.stroke(Theme.outlineVariant, M3E.strokeSurface)
+
+            Behavior on anchors.rightMargin {
+                NumberAnimation {
+                    duration: 260
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            // 1. Refresh Button (First - Segmented First)
+            Rectangle {
+                id: refreshPill
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: 48
+                height: 48
+                readonly property bool isPillActive: ImageService.isGalleryLoading || rescanMouse.pressed || rescanMouse.containsMouse
+                topLeftRadius: 24
+                bottomLeftRadius: 24
+                topRightRadius: isPillActive ? 24 : 6
+                bottomRightRadius: isPillActive ? 24 : 6
+                Behavior on topRightRadius { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                Behavior on bottomRightRadius { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                color: isPillActive
+                    ? Theme.withAlpha(Theme.primary, 0.2)
+                    : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                border.color: isPillActive ? Theme.primary : Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.15)
+                border.width: 1
+                scale: rescanMouse.pressed ? 0.94 : (rescanMouse.containsMouse ? 1.08 : 1.0)
+
+                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                DRipple {
+                    id: refreshRipple
+                    cornerRadius: 24
+                    rippleColor: Theme.primary
+                    anchors.fill: parent
+                }
+
+                DIcon {
+                    anchors.centerIn: parent
+                    name: "refresh"
+                    size: 20
+                    color: Theme.surfaceText
+                    visible: !ImageService.isGalleryLoading
+                }
+
+                DLoadingIndicator {
+                    anchors.centerIn: parent
+                    width: 22
+                    height: 22
+                    visible: ImageService.isGalleryLoading
+                }
+
+                DTooltipHost { anchors.fill: parent; text: "Rescan library" }
+
+                MouseArea {
+                    id: rescanMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: ImageService.rescan()
+                }
+            }
+
+            // 2. Search Pill (Middle)
+            Rectangle {
+                id: searchPill
+                readonly property bool isCollapsed: searchBarGroup.isCollapsed
+
+                anchors.left: refreshPill.right
+                anchors.leftMargin: searchBarGroup.pillGap
+                anchors.top: parent.top
+                width: isCollapsed ? searchBarGroup.collapsedSearchWidth : searchBarGroup.expandedSearchWidth
+                height: 48
+                topLeftRadius: isCollapsed ? 6 : 24
+                bottomLeftRadius: isCollapsed ? 6 : 24
+                topRightRadius: isCollapsed ? 6 : 24
+                bottomRightRadius: isCollapsed ? 6 : 24
+                Behavior on topLeftRadius { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                Behavior on bottomLeftRadius { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                Behavior on topRightRadius { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                Behavior on bottomRightRadius { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                color: Theme.foregroundColor(
+                    searchInput.activeFocus ? Theme.surfaceContainerHighest : ((pillHover.hovered || (isCollapsed && collapsedMouse.containsMouse)) ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh),
+                    true
+                )
+                border.color: searchInput.activeFocus ? Theme.primary : ((pillHover.hovered || (isCollapsed && collapsedMouse.containsMouse)) ? Theme.primary : M3E.stroke(Theme.outlineVariant, M3E.strokeSurface))
                 border.width: searchInput.activeFocus ? 2 : 1
                 clip: true
 
                 Behavior on width {
-                    DAnim {
-                        duration: M3E.spatialFastMs
-                        easing.bezierCurve: M3E.curveFastSpatial
-                    }
-                }
-                Behavior on anchors.rightMargin {
-                    DAnim {
-                        duration: M3E.spatialFastMs
-                        easing.bezierCurve: M3E.curveFastSpatial
+                    NumberAnimation {
+                        duration: 260
+                        easing.type: Easing.OutCubic
                     }
                 }
                 Behavior on color { DColorAnim { duration: M3E.effectsFastMs; easing.bezierCurve: M3E.curveFastEffects } }
@@ -147,9 +253,9 @@ Item {
                         color: searchInput.activeFocus ? Theme.primary : Theme.surfaceVariantText
                     }
 
-                    // Dot indicator on collapsed pill when active filters exist
+                    // Dot indicator removed from searchbar (shown only on filter icon)
                     Rectangle {
-                        visible: searchPill.isCollapsed && ImageService.hasActiveFilters
+                        visible: false
                         width: 7
                         height: 7
                         radius: 3.5
@@ -255,59 +361,6 @@ Item {
                                 }
                             }
                         }
-
-                        // Filter & Sort Button (tune icon as in Google Photos reference)
-                        Rectangle {
-                            id: filterBtn
-                            width: 36
-                            height: 36
-                            radius: 18
-                            color: ImageService.hasActiveFilters
-                                ? Theme.primaryContainer
-                                : (filterMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainer)
-
-                            HoverHandler {
-                                cursorShape: Qt.PointingHandCursor
-                            }
-
-                            scale: filterMouse.pressed ? M3E.iconBtnPressScale : 1.0
-
-                            Behavior on color { DColorAnim { duration: M3E.effectsFastMs; easing.bezierCurve: M3E.curveFastEffects } }
-                            Behavior on scale { DAnim { duration: M3E.spatialFastMs; easing.bezierCurve: M3E.curveFastSpatial } }
-
-                            DIcon {
-                                anchors.centerIn: parent
-                                name: "tune"
-                                size: 18
-                                color: ImageService.hasActiveFilters ? Theme.onPrimaryContainer : Theme.surfaceText
-                            }
-
-                            // Dot indicator when filters are active
-                            Rectangle {
-                                visible: ImageService.hasActiveFilters
-                                width: 7
-                                height: 7
-                                radius: 3.5
-                                anchors.top: parent.top
-                                anchors.topMargin: 4
-                                anchors.right: parent.right
-                                anchors.rightMargin: 4
-                                color: Theme.primary
-                            }
-
-                            DTooltipHost {
-                                anchors.fill: parent
-                                text: "Filter & Sort"
-                            }
-
-                            MouseArea {
-                                id: filterMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: filterDialog.open()
-                            }
-                        }
                     }
                 }
 
@@ -332,6 +385,67 @@ Item {
                 }
             }
 
+            // 3. Filter Pill (Last - Segmented Last)
+            Rectangle {
+                id: filterPill
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                height: 48
+                width: 48
+                readonly property bool isPillActive: filterDialog.opened || filterMouse.pressed || filterMouse.containsMouse
+                topLeftRadius: isPillActive ? 24 : 6
+                bottomLeftRadius: isPillActive ? 24 : 6
+                topRightRadius: 24
+                bottomRightRadius: 24
+                Behavior on topLeftRadius { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                Behavior on bottomLeftRadius { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                color: isPillActive ? Theme.withAlpha(Theme.primary, 0.2) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                border.color: isPillActive ? Theme.primary : Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.15)
+                border.width: 1
+                scale: filterMouse.pressed ? 0.94 : (filterMouse.containsMouse ? 1.08 : 1.0)
+
+                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                DRipple {
+                    id: filterRipple
+                    cornerRadius: 24
+                    rippleColor: Theme.primary
+                    anchors.fill: parent
+                }
+
+                DIcon {
+                    anchors.centerIn: parent
+                    name: "filter_list"
+                    size: 20
+                    color: ImageService.hasActiveFilters ? Theme.primary : Theme.surfaceText
+                }
+
+                Rectangle {
+                    visible: ImageService.hasActiveFilters
+                    width: 7
+                    height: 7
+                    radius: 3.5
+                    anchors.top: parent.top
+                    anchors.topMargin: 8
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    color: Theme.primary
+                }
+
+                DTooltipHost { anchors.fill: parent; text: "Filter & Sort" }
+
+                MouseArea {
+                    id: filterMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: filterDialog.open()
+                }
+            }
+        }
+
         Item {
             id: contentContainer
             anchors.fill: parent
@@ -354,6 +468,16 @@ Item {
 
         }
 
+        // Top-center floating refresh indicator (Android Chrome style)
+        DLoadingIndicator {
+            contained: true
+            visible: ImageService.isGalleryLoading
+            anchors.top: parent.top
+            anchors.topMargin: Theme.spacingL
+            anchors.horizontalCenter: parent.horizontalCenter
+            z: 50
+        }
+
         // Floating Contextual Actions Dock (Selection toolbar & Album edit actions)
         GalleryDock {
             id: dock
@@ -364,19 +488,11 @@ Item {
         }
     }
 
-    // Filter & Sort Modal Dialog
+    // Filter & Sort Floating Window
     FilterSortDialog {
         id: filterDialog
-        anchors.fill: parent
-        z: 100
     }
 
-    // Settings Modal Dialog
-    GallerySettings {
-        id: settingsDialog
-        anchors.fill: parent
-        z: 110
-        opened: ImageService.settingsOpen
-        onClosed: ImageService.settingsOpen = false
-    }
+        // Settings Modal Dialog
+    // GallerySettings handled by top-level FloatingWindow SettingsModal
 }

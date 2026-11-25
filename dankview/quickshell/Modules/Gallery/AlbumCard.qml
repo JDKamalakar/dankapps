@@ -33,12 +33,11 @@ Item {
         anchors.fill: parent
         spacing: Style.spacingS
 
-        Rectangle {
+        ClippingRectangle {
             id: previewBox
             Layout.fillWidth: true
             Layout.preferredHeight: root.previewHeight
-            radius: 0
-            clip: true
+            radius: Style.cornerRadiusM
             color: Theme.surfaceContainerHigh
             border.color: root.canEditCard
                 ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.65)
@@ -82,11 +81,11 @@ Item {
 
                         Image {
                             anchors.fill: parent
-                            visible: cellClip.imgPath !== ""
+                            visible: cellClip.imgPath !== "" && !ImageService.isVideoFile(cellClip.imgPath)
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                             cache: true
-                            source: cellClip.imgPath !== "" ? ("file://" + cellClip.imgPath) : ""
+                            source: (cellClip.imgPath !== "" && !ImageService.isVideoFile(cellClip.imgPath)) ? ("file://" + cellClip.imgPath) : ""
                             sourceSize.width: 180
                             sourceSize.height: 180
                         }
@@ -209,6 +208,7 @@ Item {
 
                 StyledText {
                     Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
                     text: root.album ? root.album.name : ""
                     font.pixelSize: Theme.fontSizeMedium
                     font.weight: Theme.fontWeightBold
@@ -219,6 +219,7 @@ Item {
 
             StyledText {
                 Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
                 text: root.album ? (root.album.totalCount + " photos") : ""
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText

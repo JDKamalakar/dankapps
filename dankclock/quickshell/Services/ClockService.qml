@@ -492,18 +492,13 @@ Singleton {
             currentTabIndex = 4;
         else if (initTab === "stopwatch")
             currentTabIndex = 5;
-        else if (initTab === "settings")
-            currentTabIndex = 6;
+        else if (initTab === "settings") {
+            currentTabIndex = 0;
+            settingsOpen = true;
+        }
 
         if (Quickshell.env("DCLOCK_OPEN_SETTINGS") === "1")
-            currentTabIndex = 6;
-    }
-
-    onSettingsOpenChanged: {
-        if (settingsOpen) {
-            currentTabIndex = 6;
-            settingsOpen = false;
-        }
+            settingsOpen = true;
     }
 
     // State Persistence
@@ -579,7 +574,7 @@ Singleton {
                     }
                 }
             } catch (e) {
-                console.warn("Failed to load DankClock state:", e);
+                console.warn("Failed to load DUX Clock state:", e);
             }
             root._stateReady = true;
             root._checkAlarms(root.now);
@@ -639,7 +634,7 @@ Singleton {
             if (exitCode !== 0) {
                 root._pendingSave = true;
                 root._quitRequested = false;
-                Quickshell.execDetached(["dms", "ipc", "call", "toast", "error", "DankClock — Failed to save clock state to disk."]);
+                Quickshell.execDetached(["dms", "ipc", "call", "toast", "error", "DUX Clock — Failed to save clock state to disk."]);
                 return;
             }
             if (root._pendingSave) {
@@ -1714,8 +1709,22 @@ Singleton {
         notifySoundProc.running = true;
     }
 
+    function testNotification(notifType) {
+        const t = notifType || "timer";
+        const samples = {
+            alarm: { type: "alarm", title: "Test Alarm", subtitle: "07:00 — Wake up! (Test)", soundId: "classic", volume: 0.8 },
+            reminder: { type: "reminder", title: "Test Reminder", subtitle: "Sample reminder notification", reminderIndex: -1 },
+            timer: { type: "timer", title: "Test Timer", subtitle: "00:05:00 Timer finished", soundId: "classic", volume: 0.8 },
+            pomodoro: { type: "pomodoro", title: "Test Pomodoro", subtitle: "Focus session complete — take a break!", soundId: "classic", volume: 0.8 }
+        };
+        const obj = samples[t] || samples.timer;
+        _playAlertNotification(obj);
+    }
+
     function _playAlertNotification(alertObj) {
         if (!alertObj)
+            return;
+        if (!SettingsData.enableNotifications && alertObj.type !== "alarm")
             return;
         const iconName = alertObj.type === "alarm" ? "alarm" : (alertObj.type === "reminder" ? "notifications" : (alertObj.type === "pomodoro" ? "psychology" : "hourglass_empty"));
         if (alertObj.type === "reminder") {
@@ -1726,7 +1735,7 @@ Singleton {
                 reminderIndex: remIdx,
                 command: [
                     "dms", "notify",
-                    "-a", "DankClock",
+                    "-a", "DUX Clock",
                     "-n", "com.danklinux.dankclock",
                     "-i", iconName,
                     "-u", "normal",
@@ -1743,12 +1752,12 @@ Singleton {
             const proc = alertNotifyComponent.createObject(root, {
                 command: [
                     "dms", "notify",
-                    "-a", "DankClock",
+                    "-a", "DUX Clock",
                     "-n", "com.danklinux.dankclock",
                     "-i", iconName,
                     "-u", "critical",
                     "-A", "dismiss=Dismiss",
-                    String(alertObj.title || "DankClock"),
+                    String(alertObj.title || "DUX Clock"),
                     String(alertObj.subtitle || "")
                 ]
             });

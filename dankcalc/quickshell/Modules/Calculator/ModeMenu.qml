@@ -29,20 +29,34 @@ Rectangle {
 
     Rectangle {
         id: menuCard
-        x: Theme.spacingM
-        y: 84
-        width: 240
-        implicitHeight: menuCol.implicitHeight + Theme.spacingM * 2
-        radius: Theme.cornerRadius
-        color: Theme.surfaceContainer
-        border.color: M3E.stroke(Theme.outlineVariant, M3E.strokePopup)
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 250
+        topLeftRadius: 0
+        bottomLeftRadius: 0
+        topRightRadius: Theme.cornerRadiusXL
+        bottomRightRadius: Theme.cornerRadiusXL
+        color: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+        border.color: Theme.withAlpha(Theme.outlineVariant, 0.25)
         border.width: 1
+        clip: true
 
-        scale: root.open ? 1.0 : 0.95
-        Behavior on scale {
-            DAnim {
-                duration: Theme.shortDuration
-                easing.bezierCurve: Theme.expressiveCurves.standardDecel
+        ElevationShadow {
+            anchors.fill: parent
+            z: -1
+            targetRadius: Theme.cornerRadiusXL
+            targetColor: parent.color
+            level: Style.elevationLevel3
+        }
+
+        transform: Translate {
+            x: root.open ? 0 : -menuCard.width
+            Behavior on x {
+                DAnim {
+                    duration: Theme.mediumDuration
+                    easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
+                }
             }
         }
 
@@ -56,6 +70,33 @@ Rectangle {
             anchors.fill: parent
             anchors.margins: Theme.spacingM
             spacing: Theme.spacingS
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.spacingS
+
+                DIcon {
+                    name: "calculate"
+                    size: Style.iconSizeMedium
+                    color: Theme.primary
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: "DUX Calculator"
+                    font.pixelSize: Theme.fontSizeMedium
+                    font.weight: Font.DemiBold
+                    color: Theme.surfaceText
+                }
+
+                DIconButton {
+                    iconName: "close"
+                    size: "xs"
+                    variant: "standard"
+                    tooltipText: "Close"
+                    onClicked: CalculatorService.menuOpen = false
+                }
+            }
 
             StyledText {
                 text: "Modes"
@@ -156,6 +197,10 @@ Rectangle {
                         CalculatorService.setMode("converter");
                     }
                 }
+            }
+
+            Item {
+                Layout.fillHeight: true
             }
 
             Rectangle {

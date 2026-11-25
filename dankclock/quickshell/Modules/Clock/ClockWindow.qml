@@ -47,11 +47,12 @@ FloatingWindow {
         }
     ]
 
-    title: `${ClockService.currentTabIndex === 6 ? "Settings" : (navDestinations[ClockService.currentTabIndex]?.text ?? "Clock")} — DankClock`
+    title: `${ClockService.currentTabIndex === 6 ? "Settings" : (navDestinations[ClockService.currentTabIndex]?.text ?? "Clock")} — DUX Clock`
     minimumSize: Qt.size(ClockMetrics.windowMinWidth, ClockMetrics.windowMinHeight)
     implicitWidth: ClockMetrics.windowWidth
     implicitHeight: ClockMetrics.windowHeight
-    color: ClockMetrics.windowBgColor
+    color: Theme.windowSurface
+    surfaceFormat.opaque: false
     visible: true
 
     FloatingWindowControls {
@@ -61,13 +62,15 @@ FloatingWindow {
 
     WindowBlur {
         targetWindow: window
-        blurRadius: Style.cornerRadiusL
+        blurEnabled: Theme.translucentWindows
+        blurWidth: window.width
+        blurHeight: window.height
     }
 
     Rectangle {
         id: rootContent
         anchors.fill: parent
-        color: ClockMetrics.windowBgColor
+        color: Theme.windowSurface
         focus: true
 
         // Critical for DCommon widgets (Style.isFloatingWindow(item)) to use elevated card surfaces
@@ -109,7 +112,7 @@ FloatingWindow {
                     return;
                 case Qt.Key_7:
                 case Qt.Key_Comma:
-                    ClockService.currentTabIndex = 6;
+                    ClockService.settingsOpen = true;
                     event.accepted = true;
                     return;
                 case Qt.Key_Q:
@@ -163,7 +166,7 @@ FloatingWindow {
             anchors.right: parent.right
             z: 10
             controls: windowControls
-            title: "DankClock"
+            title: "DUX Clock"
             onCloseRequested: window.requestClose()
         }
 
@@ -181,6 +184,11 @@ FloatingWindow {
                 anchors.leftMargin: Theme.spacingXS
                 anchors.rightMargin: Theme.spacingXS
                 spacing: Theme.spacingS
+
+                Item {
+                    Layout.fillHeight: true
+                    visible: SettingsData.sidebarCentered
+                }
 
                 DNavigationBar {
                     Layout.fillWidth: true
@@ -210,9 +218,9 @@ FloatingWindow {
                     spacing: Theme.spacingS
                     labelFontSize: Theme.fontSizeMedium
                     model: [{ icon: "settings", text: "Settings" }]
-                    currentIndex: ClockService.currentTabIndex === 6 ? 0 : -1
+                    currentIndex: ClockService.settingsOpen ? 0 : -1
                     onActivated: {
-                        ClockService.currentTabIndex = 6;
+                        ClockService.settingsOpen = true;
                         rootContent.forceActiveFocus();
                     }
                 }
@@ -270,10 +278,7 @@ FloatingWindow {
                 visible: ClockService.currentTabIndex === 5
             }
 
-            ClockSettingsModal {
-                anchors.fill: parent
-                visible: ClockService.currentTabIndex === 6
-            }
+            // Settings handled by top-level FloatingWindow SettingsModal
         }
 
         // Built-in DTimePicker Modal for Creating / Editing Alarms

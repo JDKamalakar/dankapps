@@ -1,339 +1,201 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import qs.Common
 import qs.Services
+import qs.Widgets
 import qs.DCommon.Common
 import qs.DCommon.Widgets
 
-Item {
+FloatingWindow {
     id: root
 
     property bool opened: false
 
     function open() {
-        tempMediaType = ImageService.filterMediaType
-        tempDateAdded = ImageService.filterDateAdded
-        tempSortOrder = ImageService.filterSortOrder
-        tempZoomLevel = ImageService.galleryZoomLevel || 3
-        tempIncludeHidden = ImageService.filterIncludeHidden
-        opened = true
+        opened = true;
+        visible = true;
+        focusRoot.forceActiveFocus();
     }
 
     function close() {
-        opened = false
+        opened = false;
+        visible = false;
     }
 
-    property string tempMediaType: "All"
-    property string tempDateAdded: "All"
-    property string tempSortOrder: "Newest first"
-    property int tempZoomLevel: 3
-    property bool tempIncludeHidden: false
+    title: "Filter & Sort Settings"
+    implicitWidth: 880
+    implicitHeight: Math.min(680, cardContent.implicitHeight + 48)
+    minimumSize: Qt.size(880, implicitHeight)
+    maximumSize: Qt.size(880, implicitHeight)
+    color: Theme.windowSurface
+    surfaceFormat.opaque: false
+    visible: false
 
-    visible: opacity > 0
-    opacity: opened ? 1.0 : 0.0
+    onClosed: hideCleanup()
 
-    Behavior on opacity {
-        DAnim {
-            duration: M3E.effectsMs
-            easing.bezierCurve: M3E.curveEffects
-        }
+    function hideCleanup() {
+        opened = false;
     }
 
-    // Modal Scrim / Backdrop
-    Rectangle {
-        id: scrim
+    WindowBlur {
+        targetWindow: root
+        blurEnabled: Theme.translucentWindows
+        blurWidth: root.width
+        blurHeight: root.height
+    }
+
+    FocusScope {
+        id: focusRoot
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.55)
+        focus: true
+        onActiveFocusChanged: {
+            if (!activeFocus && root.opened) {
+                root.close();
+            }
+        }
 
-        MouseArea {
+        Keys.onEscapePressed: event => {
+            root.close();
+            event.accepted = true;
+        }
+
+        Rectangle {
             anchors.fill: parent
-            onClicked: root.close()
-            onWheel: wheel => wheel.accepted = true
-        }
+            radius: Theme.windowRadius
+            color: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+            border.color: M3E.stroke(Theme.outlineVariant, M3E.strokeCard)
+            border.width: Style.outlineWidth
 
-        WheelHandler {
-            target: null
-            blocking: true
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: event => event.accepted = true
-        }
-    }
-
-    Keys.onEscapePressed: root.close()
-
-    // Dialog Card Container
-    Rectangle {
-        id: card
-        width: Math.min(420, parent.width - 32)
-        anchors.centerIn: parent
-        radius: Style.cornerRadiusXL
-        color: Theme.surfaceContainerHigh
-        border.color: M3E.stroke(Theme.outlineVariant, M3E.strokeCard)
-        border.width: Style.outlineWidth
-        implicitHeight: cardContent.implicitHeight + 48
-
-        scale: root.opened ? 1.0 : 0.94
-        Behavior on scale {
-            DAnim {
-                duration: M3E.spatialFastMs
-                easing.bezierCurve: M3E.curveFastSpatial
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onWheel: wheel => wheel.accepted = true
-        }
-
-        WheelHandler {
-            target: null
-            blocking: true
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: event => event.accepted = true
-        }
-
-        ColumnLayout {
-            id: cardContent
-            anchors.fill: parent
-            anchors.margins: 24
-            spacing: 16
-
-            // === Header: Title & Close Button ===
-            RowLayout {
-                Layout.fillWidth: true
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: "Filter & Sort"
-                    font.pixelSize: Theme.fontSizeLarge + 2
-                    font.weight: Theme.fontWeightBold
-                    color: Theme.surfaceText
-                }
-
-                DIconButton {
-                    iconName: "close"
-                    size: "s"
-                    onClicked: root.close()
-                }
-            }
-
-            // === Field 1: Media Type (Segmented ButtonGroup) ===
             ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 6
+                id: cardContent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 20
+                spacing: Theme.spacingM
 
-                StyledText {
-                    text: "Media Type"
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.weight: Theme.fontWeightMedium
-                    color: Theme.surfaceVariantText
-                }
-
-                DButtonGroup {
-                    id: mediaGroup
-                    Layout.fillWidth: true
-                    width: parent.width
-                    fillWidth: true
-                    size: "small"
-                    model: ["All", "Images", "GIFs"]
-                    currentIndex: {
-                        if (root.tempMediaType === "Images" || root.tempMediaType === "Images only") return 1
-                        if (root.tempMediaType === "GIFs" || root.tempMediaType === "GIFs / Animations") return 2
-                        return 0
-                    }
-                    onSelectionChanged: (index, selected) => {
-                        if (!selected) return
-                        if (index === 1) root.tempMediaType = "Images"
-                        else if (index === 2) root.tempMediaType = "GIFs"
-                        else root.tempMediaType = "All"
-                    }
-                }
-            }
-
-            // === Field 2: Date Added (Segmented ButtonGroup) ===
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
-                StyledText {
-                    text: "Date Added"
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.weight: Theme.fontWeightMedium
-                    color: Theme.surfaceVariantText
-                }
-
-                DButtonGroup {
-                    id: dateGroup
-                    Layout.fillWidth: true
-                    width: parent.width
-                    fillWidth: true
-                    size: "small"
-                    model: ["All", "Today", "7 days", "30 days", "1 year"]
-                    currentIndex: {
-                        if (root.tempDateAdded === "Today") return 1
-                        if (root.tempDateAdded === "7 days" || root.tempDateAdded === "Last 7 days") return 2
-                        if (root.tempDateAdded === "30 days" || root.tempDateAdded === "Last 30 days") return 3
-                        if (root.tempDateAdded === "1 year" || root.tempDateAdded === "This year") return 4
-                        return 0
-                    }
-                    onSelectionChanged: (index, selected) => {
-                        if (!selected) return
-                        if (index === 1) root.tempDateAdded = "Today"
-                        else if (index === 2) root.tempDateAdded = "7 days"
-                        else if (index === 3) root.tempDateAdded = "30 days"
-                        else if (index === 4) root.tempDateAdded = "1 year"
-                        else root.tempDateAdded = "All"
-                    }
-                }
-            }
-
-            // === Field 3: Sort Order (Segmented ButtonGroup) ===
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
-                StyledText {
-                    text: "Sort Order"
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.weight: Theme.fontWeightMedium
-                    color: Theme.surfaceVariantText
-                }
-
-                DButtonGroup {
-                    id: sortGroup
-                    Layout.fillWidth: true
-                    width: parent.width
-                    fillWidth: true
-                    size: "small"
-                    model: ["Newest", "Oldest", "A-Z", "Z-A"]
-                    currentIndex: {
-                        if (root.tempSortOrder.indexOf("Oldest") !== -1) return 1
-                        if (root.tempSortOrder.indexOf("A-Z") !== -1 && root.tempSortOrder.indexOf("Z-A") === -1) return 2
-                        if (root.tempSortOrder.indexOf("Z-A") !== -1) return 3
-                        return 0
-                    }
-                    onSelectionChanged: (index, selected) => {
-                        if (!selected) return
-                        if (index === 1) root.tempSortOrder = "Oldest first"
-                        else if (index === 2) root.tempSortOrder = "Name (A-Z)"
-                        else if (index === 3) root.tempSortOrder = "Name (Z-A)"
-                        else root.tempSortOrder = "Newest first"
-                    }
-                }
-            }
-
-            // === Field 4: Thumbnail Size (Zoom Slider with 5 steps) ===
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
+                // Header
                 RowLayout {
                     Layout.fillWidth: true
 
-                    StyledText {
-                        text: "Photo Size"
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.weight: Theme.fontWeightMedium
-                        color: Theme.surfaceVariantText
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    StyledText {
-                        text: {
-                            const labels = ["Extra Small", "Small", "Medium", "Large", "Extra Large"]
-                            return labels[Math.max(0, Math.min(4, root.tempZoomLevel - 1))]
-                        }
-                        font.pixelSize: Theme.fontSizeSmall
+                    DIcon {
+                        name: "filter_list"
+                        size: Style.iconSizeMedium
                         color: Theme.primary
-                        font.weight: Theme.fontWeightMedium
                     }
-                }
-
-                DSlider {
-                    Layout.fillWidth: true
-                    width: parent.width
-                    minimum: 1
-                    maximum: 5
-                    step: 1
-                    value: root.tempZoomLevel
-                    showValue: false
-                    startIcon: "photo_size_select_small"
-                    endIcon: "photo_size_select_large"
-                    onValueChanged: root.tempZoomLevel = value
-                }
-            }
-
-            // === Field 5: Options Toggle ===
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 8
-
-                StyledText {
-                    text: "Options"
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.weight: Theme.fontWeightMedium
-                    color: Theme.surfaceVariantText
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
 
                     StyledText {
                         Layout.fillWidth: true
-                        text: "Include hidden"
-                        font.pixelSize: Theme.fontSizeSmall
+                        text: "Filter & Sort"
+                        font.pixelSize: Theme.fontSizeLarge + 2
+                        font.weight: Theme.fontWeightBold
                         color: Theme.surfaceText
+                    }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.tempIncludeHidden = !root.tempIncludeHidden
+                    DButton {
+                        text: "Reset"
+                        iconName: "restart_alt"
+                        buttonHeight: Style.buttonHeightXS
+                        backgroundColor: Theme.surfaceContainerHighest
+                        textColor: Theme.surfaceText
+                        onClicked: {
+                            ImageService.filterMediaType = "All";
+                            ImageService.filterDateAdded = "All";
+                            ImageService.filterSortOrder = "Newest first";
+                            ImageService.filterIncludeHidden = false;
+                            ImageService.galleryZoomLevel = 3;
+                        }
+                    }
+                }
+
+                SettingsCard {
+                    Layout.fillWidth: true
+                    title: "Filter"
+                    iconName: "filter_alt"
+
+                    SettingsButtonGroupRow {
+                        iconName: "perm_media"
+                        text: "Media type"
+                        model: ["All", "Images", "GIFs"]
+                        currentIndex: {
+                            if (ImageService.filterMediaType === "Images" || ImageService.filterMediaType === "Images only") return 1;
+                            if (ImageService.filterMediaType === "GIFs" || ImageService.filterMediaType === "GIFs / Animations") return 2;
+                            return 0;
+                        }
+                        onSelectionChanged: (index, selected) => {
+                            if (!selected) return;
+                            if (index === 1) ImageService.filterMediaType = "Images";
+                            else if (index === 2) ImageService.filterMediaType = "GIFs";
+                            else ImageService.filterMediaType = "All";
                         }
                     }
 
-                    DToggle {
-                        checked: root.tempIncludeHidden
-                        onToggled: val => root.tempIncludeHidden = val
+                    SettingsButtonGroupRow {
+                        iconName: "calendar_today"
+                        text: "Date added"
+                        model: ["All", "Today", "7d", "30d", "1y"]
+                        currentIndex: {
+                            if (ImageService.filterDateAdded === "Today") return 1;
+                            if (ImageService.filterDateAdded === "7 days" || ImageService.filterDateAdded === "Last 7 days") return 2;
+                            if (ImageService.filterDateAdded === "30 days" || ImageService.filterDateAdded === "Last 30 days") return 3;
+                            if (ImageService.filterDateAdded === "1 year" || ImageService.filterDateAdded === "This year") return 4;
+                            return 0;
+                        }
+                        onSelectionChanged: (index, selected) => {
+                            if (!selected) return;
+                            if (index === 1) ImageService.filterDateAdded = "Today";
+                            else if (index === 2) ImageService.filterDateAdded = "7 days";
+                            else if (index === 3) ImageService.filterDateAdded = "30 days";
+                            else if (index === 4) ImageService.filterDateAdded = "1 year";
+                            else ImageService.filterDateAdded = "All";
+                        }
+                    }
+
+                    SettingsToggleRow {
+                        iconName: "visibility"
+                        text: "Include hidden files"
+                        checked: ImageService.filterIncludeHidden
+                        onToggled: val => ImageService.filterIncludeHidden = val
                     }
                 }
-            }
 
-            Item { Layout.preferredHeight: 8 }
+                SettingsCard {
+                    Layout.fillWidth: true
+                    title: "Sort & Layout"
+                    iconName: "sort"
 
-            // === Footer: Reset & Apply Buttons ===
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Style.spacingM
-
-                Item { Layout.fillWidth: true }
-
-                DButton {
-                    text: "Reset"
-                    buttonHeight: Style.buttonHeightS
-                    backgroundColor: "transparent"
-                    textColor: Theme.primary
-                    onClicked: {
-                        root.tempMediaType = "All"
-                        root.tempDateAdded = "All"
-                        root.tempSortOrder = "Newest first"
-                        root.tempZoomLevel = 3
-                        root.tempIncludeHidden = false
+                    SettingsButtonGroupRow {
+                        iconName: "swap_vert"
+                        text: "Sort order"
+                        model: ["Newest", "Oldest", "A-Z", "Z-A"]
+                        currentIndex: {
+                            if (ImageService.filterSortOrder.indexOf("Oldest") !== -1) return 1;
+                            if (ImageService.filterSortOrder.indexOf("A-Z") !== -1 && ImageService.filterSortOrder.indexOf("Z-A") === -1) return 2;
+                            if (ImageService.filterSortOrder.indexOf("Z-A") !== -1) return 3;
+                            return 0;
+                        }
+                        onSelectionChanged: (index, selected) => {
+                            if (!selected) return;
+                            if (index === 1) ImageService.filterSortOrder = "Oldest first";
+                            else if (index === 2) ImageService.filterSortOrder = "Name (A-Z)";
+                            else if (index === 3) ImageService.filterSortOrder = "Name (Z-A)";
+                            else ImageService.filterSortOrder = "Newest first";
+                        }
                     }
-                }
 
-                DButton {
-                    text: "Apply"
-                    buttonHeight: Style.buttonHeightS
-                    backgroundColor: Theme.primary
-                    textColor: Theme.onPrimary
-                    onClicked: {
-                        ImageService.filterMediaType = root.tempMediaType
-                        ImageService.filterDateAdded = root.tempDateAdded
-                        ImageService.filterSortOrder = root.tempSortOrder
-                        ImageService.filterIncludeHidden = root.tempIncludeHidden
-                        ImageService.galleryZoomLevel = root.tempZoomLevel
-                        root.close()
+                    SettingsSliderRow {
+                        iconName: "photo_size_select_large"
+                        text: "Photo size"
+                        description: {
+                            const labels = ["Extra Small", "Small", "Medium", "Large", "Extra Large"];
+                            return labels[Math.max(0, Math.min(4, (ImageService.galleryZoomLevel || 3) - 1))];
+                        }
+                        minimum: 1
+                        maximum: 5
+                        step: 1
+                        value: ImageService.galleryZoomLevel || 3
+                        onSliderValueChanged: v => ImageService.galleryZoomLevel = v
                     }
                 }
             }

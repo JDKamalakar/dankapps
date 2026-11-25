@@ -12,11 +12,12 @@ import "../Gallery"
 FloatingWindow {
     id: window
 
-    title: ImageService.galleryMode ? "Gallery — DankView" : (ImageService.currentFileName ? (ImageService.currentFileName + " — DankView") : "DankView")
+    title: ImageService.galleryMode ? "Gallery — DUX Galary" : (ImageService.currentFileName ? (ImageService.currentFileName + " — DUX Galary") : "DUX Galary")
     minimumSize: Qt.size(480, 360)
     implicitWidth: 1050
     implicitHeight: 720
-    color: Theme.surfaceContainerLowest
+    color: Theme.windowSurface
+    surfaceFormat.opaque: false
     visible: true
 
     Item {
@@ -245,14 +246,22 @@ FloatingWindow {
                     windowControls.tryToggleMaximize();
                     event.accepted = true;
                 } else {
-                    Qt.quit();
+                    event.accepted = true;
                 }
                 break;
             }
         }
 
         // Floating Window Controls (resizing, moving, maximizing)
-        FloatingWindowControls {
+        
+    WindowBlur {
+        targetWindow: window
+        blurEnabled: Theme.translucentWindows
+        blurWidth: window.width
+        blurHeight: window.height
+    }
+
+    FloatingWindowControls {
             id: windowControls
             targetWindow: window
         }
@@ -262,7 +271,7 @@ FloatingWindow {
             id: windowFrame
             anchors.fill: parent
             radius: window.maximized ? 0 : Theme.windowRadius
-            color: ImageService.galleryMode ? Theme.surface : Theme.surfaceContainerLowest
+            color: Theme.windowSurface
             border.color: M3E.stroke(Theme.outlineVariant, M3E.strokePopup)
             border.width: window.maximized ? 0 : 1
             clip: !window.maximized
@@ -313,7 +322,7 @@ FloatingWindow {
             Rectangle {
                 id: canvasContainer
                 anchors.fill: parent
-                color: Theme.surfaceContainerLowest
+                color: "transparent"
                 clip: true
                 visible: !ImageService.galleryMode
 

@@ -6,11 +6,11 @@ Community Quickshell apps for [DankMaterialShell (DMS)](https://github.com/Aveng
 
 | App | Command | Description |
 |---|---|---|
-| [DankView](./dankview/) | `dview` | Image viewer with editing tools and EXIF info |
-| [DankCalc](./dankcalc/) | `dcalc` | Calculator with scientific functions and unit conversion |
-| [DankClock](./dankclock/) | `dclock` | Clock, world clock, alarm, timer, Pomodoro, and stopwatch |
+| [DUX Galary](./dankview/) | `dview` | Image viewer with editing tools and EXIF info |
+| [DUX Calculator](./dankcalc/) | `dcalc` | Calculator with scientific functions and unit conversion |
+| [DUX Clock](./dankclock/) | `dclock` | Clock, world clock, alarm, timer, Pomodoro, and stopwatch |
 | [Duzzle](./duzzle/) | `duzzle` | Puzzle and arcade games |
-| [DankVideo](./dankvideo/) | `dplay` | Video player |
+| [DUX Video Player](./dankvideo/) | `dplay` | Video player |
 
 ## Requirements
 
