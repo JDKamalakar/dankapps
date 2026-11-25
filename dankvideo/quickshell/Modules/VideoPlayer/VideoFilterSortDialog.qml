@@ -15,11 +15,13 @@ FloatingWindow {
     property string sortOrder: "newest"
     property int gridItemSize: 184
     property bool groupByDate: false
+    property bool includeHidden: false
 
     signal dateFilterSelected(string val)
     signal sortOrderSelected(string val)
     signal itemSizeSelected(int val)
     signal groupByDateToggled(bool val)
+    signal includeHiddenToggled(bool val)
     signal resetRequested()
 
     function open() {
@@ -136,6 +138,13 @@ FloatingWindow {
                                 const opts = ["all", "today", "7d", "30d"];
                                 root.dateFilterSelected(opts[idx]);
                             }
+                        }
+
+                        SettingsToggleRow {
+                            iconName: "visibility"
+                            text: "Include hidden files"
+                            checked: root.includeHidden
+                            onToggled: val => root.includeHiddenToggled(val)
                         }
                     }
 

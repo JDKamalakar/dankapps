@@ -330,6 +330,20 @@ Column {
         title: "Sidebar"
         iconName: "view_sidebar"
 
+        SettingsButtonGroupRow {
+            iconName: "view_sidebar"
+            text: "Sidebar labels"
+            description: "Choose where labels appear for sidebar navigation items"
+            settingKey: "sidebarStyle"
+            model: ["Icons only", "Below icons", "Next to icons"]
+            currentIndex: SettingsData.sidebarStyle === "icons_only" ? 0 : (SettingsData.sidebarStyle === "below" ? 1 : 2)
+            onSelectionChanged: (idx, sel) => {
+                if (!sel) return;
+                const styles = ["icons_only", "below", "beside"];
+                SettingsData.sidebarStyle = styles[idx] || "beside";
+            }
+        }
+
         SettingsToggleRow {
             iconName: "vertical_align_center"
             text: "Center sidebar items"
@@ -337,6 +351,28 @@ Column {
             settingKey: "sidebarCentered"
             checked: SettingsData.sidebarCentered
             onToggled: chk => SettingsData.sidebarCentered = chk
+        }
+
+        SettingsToggleRow {
+            iconName: "dock_to_left"
+            text: "Floating sidebar"
+            description: "Float the sidebar as an auto-hiding rounded panel with an edge reveal pill."
+            settingKey: "sidebarFloating"
+            checked: SettingsData.sidebarFloating
+            onToggled: chk => SettingsData.sidebarFloating = chk
+        }
+
+        SettingsSliderRow {
+            visible: SettingsData.sidebarFloating
+            iconName: "timer"
+            text: "Floating sidebar delay"
+            description: "How quickly the floating sidebar auto-hides (" + SettingsData.sidebarAutoHideMs + " ms)"
+            minimum: 300
+            maximum: 4000
+            step: 100
+            value: SettingsData.sidebarAutoHideMs
+            unit: "ms"
+            onSliderValueChanged: v => SettingsData.sidebarAutoHideMs = v
         }
     }
 

@@ -86,6 +86,7 @@ APP_DIRS=(
     "dankvideo"
     "dankview"
     "duzzle"
+    "duxgamehub"
 )
 
 APP_NAMES=(
@@ -94,6 +95,7 @@ APP_NAMES=(
     "DUX Video Player (dplay)"
     "DUX Galary (dview)"
     "Duzzle (duzzle)"
+    "DUX Game Hub (dgamehub)"
 )
 
 echo -e "${BOLD}Select the apps you want to install:${RESET}"

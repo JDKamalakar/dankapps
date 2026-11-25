@@ -284,7 +284,30 @@ Singleton {
     }
 
     // ── Converter Methods ──────────────────────────────────────────────────
+    property bool currencyRatesLoaded: false
+
+    function fetchCurrencyRates() {
+        if (currencyRatesLoaded) return;
+        const xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
+                try {
+                    const res = JSON.parse(xhr.responseText);
+                    if (res && res.rates && ConvLogic.updateCurrencyRates(res.rates)) {
+                        currencyRatesLoaded = true;
+                        if (converterCategory === "currency") {
+                            updateConverterConversion();
+                        }
+                    }
+                } catch (e) {}
+            }
+        };
+        xhr.open("GET", "https://open.er-api.com/v6/latest/USD");
+        xhr.send();
+    }
+
     function setConverterCategory(catKey) {
+        if (catKey === "currency") fetchCurrencyRates();
         converterCategory = catKey;
         const cat = ConvLogic.getCategory(catKey);
         converterFromUnit = cat.defaultFrom || cat.units[0].id;

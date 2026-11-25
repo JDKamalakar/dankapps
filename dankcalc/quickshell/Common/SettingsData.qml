@@ -71,6 +71,9 @@ Singleton {
     property alias focusRingWidth: adapter.focusRingWidth
     property alias focusRingColor: adapter.focusRingColor
     property alias sidebarCentered: adapter.sidebarCentered
+    property alias sidebarStyle: adapter.sidebarStyle
+    property alias sidebarFloating: adapter.sidebarFloating
+    property alias sidebarAutoHideMs: adapter.sidebarAutoHideMs
 
     readonly property string sharedConfigDir: {
         const xdg = Quickshell.env("XDG_CONFIG_HOME");
@@ -89,7 +92,7 @@ Singleton {
         "floatingWindowTransparency", "floatingWindowForegroundLayers",
         "floatingWindowForegroundTransparency", "blurEnabled",
         "settingsItemSeparation", "fontWeight", "fontScale",
-        "focusRingEnabled", "focusRingWidth", "focusRingColor", "sidebarCentered"
+        "focusRingEnabled", "focusRingWidth", "focusRingColor", "sidebarCentered", "sidebarStyle", "sidebarFloating", "sidebarAutoHideMs"
     ]
 
     function _applySharedToLocal() {
@@ -190,6 +193,9 @@ Singleton {
             property real focusRingWidth: 1.5
             property string focusRingColor: "primary"
             property bool sidebarCentered: false
+            property string sidebarStyle: "beside"
+            property bool sidebarFloating: false
+            property int sidebarAutoHideMs: 1500
             property bool scientificExpanded: false
             property bool angleUnitRad: true
         }
@@ -252,6 +258,9 @@ Singleton {
             property real focusRingWidth: 1.5
             property string focusRingColor: "primary"
             property bool sidebarCentered: false
+            property string sidebarStyle: "beside"
+            property bool sidebarFloating: false
+            property int sidebarAutoHideMs: 1500
         }
     }
 }

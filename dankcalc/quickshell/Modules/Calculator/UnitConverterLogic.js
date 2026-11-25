@@ -1,6 +1,28 @@
 .pragma library
 
 const CATEGORIES = {
+    currency: {
+        name: "Currency",
+        icon: "currency_exchange",
+        defaultFrom: "USD",
+        defaultTo: "INR",
+        units: [
+            { id: "USD", name: "USD", desc: "US Dollar ($)", factor: 1 },
+            { id: "EUR", name: "EUR", desc: "Euro (€)", factor: 1 / 0.92 },
+            { id: "GBP", name: "GBP", desc: "British Pound (£)", factor: 1 / 0.79 },
+            { id: "INR", name: "INR", desc: "Indian Rupee (₹)", factor: 1 / 84.5 },
+            { id: "JPY", name: "JPY", desc: "Japanese Yen (¥)", factor: 1 / 154.0 },
+            { id: "CAD", name: "CAD", desc: "Canadian Dollar (C$)", factor: 1 / 1.40 },
+            { id: "AUD", name: "AUD", desc: "Australian Dollar (A$)", factor: 1 / 1.54 },
+            { id: "CHF", name: "CHF", desc: "Swiss Franc (CHF)", factor: 1 / 0.88 },
+            { id: "CNY", name: "CNY", desc: "Chinese Yuan (¥)", factor: 1 / 7.25 },
+            { id: "KRW", name: "KRW", desc: "South Korean Won (₩)", factor: 1 / 1400.0 },
+            { id: "SGD", name: "SGD", desc: "Singapore Dollar (S$)", factor: 1 / 1.34 },
+            { id: "AED", name: "AED", desc: "UAE Dirham (د.إ)", factor: 1 / 3.6725 },
+            { id: "BRL", name: "BRL", desc: "Brazilian Real (R$)", factor: 1 / 5.80 },
+            { id: "MXN", name: "MXN", desc: "Mexican Peso ($)", factor: 1 / 20.3 }
+        ]
+    },
     length: {
         name: "Length",
         icon: "straighten",
@@ -163,6 +185,7 @@ const CATEGORIES = {
 };
 
 const CATEGORY_KEYS = [
+    "currency",
     "length",
     "mass",
     "temperature",
@@ -175,6 +198,20 @@ const CATEGORY_KEYS = [
     "power",
     "energy"
 ];
+
+function updateCurrencyRates(rates) {
+    if (!rates || typeof rates !== "object") return false;
+    const units = CATEGORIES.currency.units;
+    let updated = false;
+    for (let i = 0; i < units.length; i++) {
+        const r = rates[units[i].id];
+        if (typeof r === "number" && r > 0) {
+            units[i].factor = 1.0 / r;
+            updated = true;
+        }
+    }
+    return updated;
+}
 
 function getCategory(key) {
     return CATEGORIES[key] || CATEGORIES.length;

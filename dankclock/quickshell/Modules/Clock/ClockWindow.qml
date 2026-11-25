@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import Quickshell
 import qs.Common
 import qs.Services
+import qs.Widgets
 import qs.DCommon.Common
 import qs.DCommon.Widgets
 import "."
@@ -172,32 +173,91 @@ FloatingWindow {
 
         Item {
             id: sidebar
+            z: 50
+            property bool _floatingRevealed: true
+            readonly property bool _isHidden: SettingsData.sidebarFloating && !_floatingRevealed
             anchors.left: parent.left
             anchors.top: header.bottom
             anchors.bottom: parent.bottom
-            width: Style.navigationRailWidth
+            width: SettingsData.sidebarFloating ? (_isHidden ? 16 : clockPrimaryNav.railWidth + Theme.spacingM * 2 + Theme.spacingS) : clockPrimaryNav.railWidth
 
-            ColumnLayout {
+            Behavior on width { enabled: Theme.animationsEnabled; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+            HoverHandler {
+                id: clockSidebarHover
+                onHoveredChanged: {
+                    if (hovered) {
+                        sidebar._floatingRevealed = true;
+                        clockHideTimer.stop();
+                    } else if (SettingsData.sidebarFloating) {
+                        clockHideTimer.restart();
+                    }
+                }
+            }
+
+            Timer {
+                id: clockHideTimer
+                interval: SettingsData.sidebarAutoHideMs || 1500
+                onTriggered: {
+                    if (SettingsData.sidebarFloating && !clockSidebarHover.hovered)
+                        sidebar._floatingRevealed = false;
+                }
+            }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                width: 5
+                height: 48
+                radius: 2.5
+                color: Theme.primary
+                opacity: 0.75
+                visible: SettingsData.sidebarFloating
+                z: 5
+            }
+
+            Rectangle {
+                visible: SettingsData.sidebarFloating
+                opacity: sidebar._isHidden ? 0 : 1
+                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                 anchors.fill: parent
                 anchors.topMargin: Theme.spacingM
                 anchors.bottomMargin: Theme.spacingM
-                anchors.leftMargin: Theme.spacingXS
-                anchors.rightMargin: Theme.spacingXS
+                anchors.leftMargin: Theme.spacingS
+                anchors.rightMargin: Theme.spacingS
+                radius: Theme.groupedListOuterRadius ?? 16
+                color: Theme.withAlpha(Theme.surfaceContainerHigh, 0.78)
+                border.color: Theme.outlineMedium ?? Theme.outlineVariant
+                border.width: 1
+                clip: true
+            }
+
+            ColumnLayout {
+                id: clockSidebarCol
+                opacity: sidebar._isHidden ? 0 : 1
+                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                anchors.fill: parent
+                anchors.topMargin: Theme.spacingM + (SettingsData.sidebarFloating ? 12 : 0)
+                anchors.bottomMargin: Theme.spacingM + (SettingsData.sidebarFloating ? 12 : 0)
+                anchors.leftMargin: SettingsData.sidebarFloating ? Theme.spacingL : Theme.spacingM
+                anchors.rightMargin: SettingsData.sidebarFloating ? Theme.spacingL : 0
                 spacing: Theme.spacingS
 
                 Item {
-                    Layout.fillHeight: true
-                    visible: SettingsData.sidebarCentered
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: SettingsData.sidebarCentered ? Math.max(0, (clockSidebarCol.height - clockPrimaryNav.implicitHeight - clockBottomNav.implicitHeight - Theme.spacingS * 2) / 2) : 0
+                    Behavior on Layout.preferredHeight {
+                        enabled: Theme.animationsEnabled
+                        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                    }
                 }
 
-                DNavigationBar {
+                AppSidebarRail {
+                    id: clockPrimaryNav
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
                     Layout.alignment: Qt.AlignTop
-                    orientation: Qt.Vertical
-                    evenlySpaced: false
-                    spacing: Theme.spacingS
-                    labelFontSize: Theme.fontSizeMedium
                     model: window.navDestinations
                     currentIndex: ClockService.currentTabIndex < 6 ? ClockService.currentTabIndex : -1
                     onActivated: index => {
@@ -210,13 +270,10 @@ FloatingWindow {
                     Layout.fillHeight: true
                 }
 
-                DNavigationBar {
+                AppSidebarRail {
+                    id: clockBottomNav
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
-                    orientation: Qt.Vertical
-                    evenlySpaced: false
-                    spacing: Theme.spacingS
-                    labelFontSize: Theme.fontSizeMedium
                     model: [{ icon: "settings", text: "Settings" }]
                     currentIndex: ClockService.settingsOpen ? 0 : -1
                     onActivated: {
@@ -230,7 +287,7 @@ FloatingWindow {
         // Main M3E Content Container Card (Rounded container adjacent to sidebar)
         Rectangle {
             id: contentScope
-            anchors.left: sidebar.right
+            anchors.left: SettingsData.sidebarFloating ? parent.left : sidebar.right
             anchors.leftMargin: Theme.spacingXS
             anchors.top: header.bottom
             anchors.right: parent.right

@@ -1,0 +1,433 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Templates as T
+import qs.Common
+import qs.DCommon.Widgets
+
+T.Control {
+    id: root
+
+    LayoutMirroring.enabled: I18n.isRtl
+    LayoutMirroring.childrenInherit: true
+
+    readonly property bool isSettingsRow: true
+
+    property string title: ""
+    property string subtitle: ""
+    property string keywords: ""
+    property bool flashing: false
+    property color subtitleColor: Theme.surfaceVariantText
+    property string iconName: ""
+    property string accent: ""
+    property bool clickable: false
+    property bool showChevron: false
+    property string trailingBadge: ""
+    property color trailingBadgeColor: Theme.surfaceVariantText
+    property real paddingH: SettingsMetrics.rowPaddingH
+    property real paddingV: SettingsMetrics.rowPaddingV
+    property color rowColor: SettingsMetrics.rowColor
+    property color iconColor: Theme.primary
+    property color titleColor: Theme.surfaceText
+    property string settingKey: ""
+    property bool active: false
+    readonly property bool modified: settingKey !== "" && typeof SettingsData.hasDefault === "function" && SettingsData.hasDefault(settingKey) && !SettingsData.isDefault(settingKey)
+
+    default property alias trailing: trailingSlot.data
+    property alias leading: leadingSlot.data
+    property alias body: bodySlot.data
+
+    readonly property bool hasBody: bodySlot.visibleChildren.length > 0
+    readonly property bool hasText: title !== "" || subtitle !== ""
+    property bool isFirstInGroup: edgeRow(true) === root
+    property bool isLastInGroup: edgeRow(false) === root
+    readonly property bool isRowHovered: rowHover.hovered || clickControl.hovered
+    readonly property real baseOuterRadius: Theme.groupedListOuterRadius ?? 16
+    readonly property real baseInnerRadius: Theme.groupedListInnerRadius ?? 4
+    readonly property real hoverRadius: baseOuterRadius + 3 * (SettingsData.radiusStrength !== undefined ? SettingsData.radiusStrength / 50.0 : 1.0)
+    property real topRadius: clickControl.down ? (Theme.cornerRadiusS ?? 8) : (isRowHovered ? hoverRadius : (isFirstInGroup ? baseOuterRadius : baseInnerRadius))
+    property real bottomRadius: clickControl.down ? (Theme.cornerRadiusS ?? 8) : (isRowHovered ? hoverRadius : (isLastInGroup ? baseOuterRadius : baseInnerRadius))
+    readonly property real minHeight: subtitle !== "" ? SettingsMetrics.rowMinHeightTwoLine : SettingsMetrics.rowMinHeight
+
+    Behavior on topRadius {
+        enabled: Theme.animationsEnabled
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Behavior on bottomRadius {
+        enabled: Theme.animationsEnabled
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    readonly property var accentPair: accent !== "" ? Theme.accent(accent) : null
+    readonly property color badgeColor: accentPair?.container ?? Theme.withAlpha(Theme.primary, Theme.tonalTintAlpha)
+    readonly property color glyphColor: accentPair?.onContainer ?? root.iconColor
+
+    signal clicked
+
+    function flash() {
+        flashing = true;
+        flashTimer.restart();
+    }
+
+    Timer {
+        id: flashTimer
+
+        interval: SettingsMetrics.flashHold
+        onTriggered: root.flashing = false
+    }
+
+    focusPolicy: clickable ? Qt.StrongFocus : Qt.NoFocus
+    Accessible.role: clickable ? Accessible.Button : Accessible.NoRole
+    Accessible.name: title
+    Accessible.description: subtitle
+    Accessible.onPressAction: {
+        if (clickable && enabled)
+            clicked();
+    }
+
+    Keys.onPressed: event => {
+        if (!clickable || !enabled)
+            return;
+        switch (event.key) {
+        case Qt.Key_Space:
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+            root.clicked();
+            event.accepted = true;
+            break;
+        }
+    }
+
+    function edgeRow(first) {
+        const siblings = parent?.visibleChildren || parent?.children;
+        if (!siblings)
+            return root;
+        let last = null;
+        for (let i = 0; i < siblings.length; i++) {
+            const sibling = siblings[i];
+            if (!sibling || sibling.isSettingsRow !== true || !sibling.visible)
+                continue;
+            if (first)
+                return sibling;
+            last = sibling;
+        }
+        return last ?? root;
+    }
+
+    width: parent?.width ?? 0
+    readonly property bool _matchesSearch: {
+        const q = (SettingsData.activeSettingsSearch || "").trim().toLowerCase();
+        if (!q) return true;
+        return (title || "").toLowerCase().indexOf(q) !== -1
+            || (subtitle || "").toLowerCase().indexOf(q) !== -1
+            || (keywords || "").toLowerCase().indexOf(q) !== -1;
+    }
+
+    height: _matchesSearch ? implicitHeight : 0
+    opacity: _matchesSearch ? 1.0 : 0.0
+    clip: true
+    Behavior on height {
+        enabled: Theme.animationsEnabled
+        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+    }
+    Behavior on opacity {
+        enabled: Theme.animationsEnabled
+        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+    }
+    implicitHeight: paddingV * 2 + headerLine.height + (hasBody ? bodySlot.height + (headerLine.height > 0 ? Theme.spacingM : 0) : 0)
+
+    HoverHandler {
+        id: rowHover
+        cursorShape: root.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        readonly property bool separate: SettingsData.settingsItemSeparation ?? true
+        color: root.active ? SettingsMetrics.selectedRowColor : (root.flashing ? Theme.blend(root.rowColor, Theme.primary, SettingsMetrics.highlightBlend) : (root.isRowHovered ? (SettingsMetrics.rowHoverColor ?? Theme.surfaceContainerHighest) : (separate ? (SettingsMetrics.rowColor ?? Theme.surfaceContainerHigh) : Theme.withAlpha(SettingsMetrics.rowColor ?? Theme.surfaceContainerHigh, 0.4))))
+        topLeftRadius: root.topRadius
+        topRightRadius: root.topRadius
+        bottomLeftRadius: root.bottomRadius
+        bottomRightRadius: root.bottomRadius
+        border.width: root.active ? Theme.outlineWidthFocused : (root.isRowHovered ? Theme.layerOutlineWidth ?? 1 : (separate ? 1 : 0))
+        border.color: root.active ? Theme.primary : (root.isRowHovered ? Theme.outline : (separate ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.10) : "transparent"))
+
+        Behavior on color {
+            enabled: Theme.animationsEnabled
+            ColorAnimation {
+                duration: SettingsMetrics.fadeDuration
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: Theme.expressiveCurves.expressiveEffects
+            }
+        }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: root.clickable
+        color: Theme.surfaceText
+        opacity: !root.enabled ? 0 : (clickControl.down ? Theme.stateLayerPressed : (clickControl.hovered ? Theme.stateLayerHover : 0))
+        topLeftRadius: root.topRadius
+        topRightRadius: root.topRadius
+        bottomLeftRadius: root.bottomRadius
+        bottomRightRadius: root.bottomRadius
+
+        Behavior on opacity {
+            enabled: Theme.animationsEnabled
+            NumberAnimation {
+                duration: SettingsMetrics.fadeDuration
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: Theme.expressiveCurves.expressiveEffects
+            }
+        }
+    }
+
+    DRipple {
+        id: ripple
+        visible: root.clickable
+        rippleColor: Theme.surfaceText
+        topLeftRadius: root.topRadius
+        topRightRadius: root.topRadius
+        bottomLeftRadius: root.bottomRadius
+        bottomRightRadius: root.bottomRadius
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        topLeftRadius: root.topRadius
+        topRightRadius: topLeftRadius
+        bottomLeftRadius: root.bottomRadius
+        bottomRightRadius: bottomLeftRadius
+        color: "transparent"
+        border.width: root.activeFocus ? Math.max(2, Theme.focusRingWidth) : 1
+        border.color: root.activeFocus ? Theme.focusRingColor : (root.isRowHovered ? Theme.primary : "transparent")
+        visible: opacity > 0
+        opacity: (root.activeFocus || root.isRowHovered) ? 1.0 : 0.0
+
+        Behavior on border.color {
+            enabled: Theme.animationsEnabled
+            ColorAnimation {
+                duration: 180
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        Behavior on opacity {
+            enabled: Theme.animationsEnabled
+            NumberAnimation {
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on topLeftRadius {
+            enabled: Theme.animationsEnabled
+            NumberAnimation {
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on bottomLeftRadius {
+            enabled: Theme.animationsEnabled
+            NumberAnimation {
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+
+    StyledButton {
+        id: clickControl
+        anchors.fill: parent
+        enabled: root.clickable && root.enabled
+        hoverEnabled: root.clickable
+        focusPolicy: Qt.ClickFocus
+        background: null
+        Accessible.ignored: true
+        onPressedChanged: {
+            if (pressed)
+                ripple.trigger(pressX, pressY);
+        }
+        onClicked: root.clicked()
+
+        HoverHandler {
+            cursorShape: root.clickable ? Qt.PointingHandCursor : Qt.ArrowCursor
+        }
+    }
+
+    Column {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.topMargin: root.paddingV
+        anchors.leftMargin: root.paddingH
+        anchors.rightMargin: root.paddingH
+        spacing: Theme.spacingM
+
+        Item {
+            id: headerLine
+            visible: height > 0
+            width: parent.width
+            implicitHeight: Math.max(textColumn.implicitHeight, trailingArea.implicitHeight, leadingArea.visible ? leadingArea.implicitHeight : 0)
+            height: Math.max(implicitHeight, (root.hasText || trailingSlot.children.length > 0 ? root.minHeight : 0) - root.paddingV * 2)
+
+            Row {
+                id: leadingArea
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.spacingM
+                visible: leadingSlot.children.length > 0 || root.iconName !== ""
+                opacity: root.enabled ? 1 : SettingsMetrics.disabledOpacity
+
+                Row {
+                    id: leadingSlot
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingS
+                    visible: children.length > 0
+                }
+
+                Rectangle {
+                    width: SettingsMetrics.navIconSize
+                    height: SettingsMetrics.navIconSize
+                    radius: Theme.fullRadius(width, height)
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: root.badgeColor
+                    visible: root.iconName !== ""
+
+                    DIcon {
+                        anchors.centerIn: parent
+                        name: root.iconName
+                        size: Theme.iconSizeMedium
+                        color: root.glyphColor
+                    }
+                }
+            }
+
+            Column {
+                id: textColumn
+                anchors.left: leadingArea.visible ? leadingArea.right : parent.left
+                anchors.leftMargin: leadingArea.visible ? Theme.spacingL : 0
+                anchors.right: trailingArea.visible ? trailingArea.left : parent.right
+                anchors.rightMargin: trailingArea.visible ? SettingsMetrics.rowContentSpacing : 0
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.spacingXXS
+                opacity: root.enabled ? 1 : SettingsMetrics.disabledOpacity
+                visible: root.hasText
+
+                Item {
+                    id: titleLine
+                    readonly property bool resettable: root.settingKey !== "" && typeof SettingsData.hasDefault === "function" && SettingsData.hasDefault(root.settingKey)
+                    readonly property real chipTrailing: Theme.spacingXS + Theme.iconSizeSmall + SettingsMetrics.resetChipPaddingH
+
+                    width: parent.width
+                    height: titleText.implicitHeight
+                    visible: root.title !== ""
+
+                    Loader {
+                        id: resetChip
+                        anchors.left: parent.left
+                        anchors.leftMargin: -SettingsMetrics.resetChipPaddingH
+                        y: -SettingsMetrics.resetChipPaddingV
+                        width: SettingsMetrics.resetChipPaddingH + titleText.contentWidth + titleLine.chipTrailing
+                        height: titleText.implicitHeight + SettingsMetrics.resetChipPaddingV * 2
+                        active: root.modified && root.title !== ""
+
+                        sourceComponent: StyledButton {
+                            id: chip
+                            radius: Theme.fullRadius(width, height)
+                            color: SettingsMetrics.controlColor
+                            enabled: root.enabled
+                            Accessible.name: I18n.tr("Reset to default", "settings row button restoring the density default")
+                            Accessible.description: root.title
+                            onClicked: SettingsData.resetToDefault(root.settingKey)
+
+                            FocusRing {
+                                visible: chip.visualFocus
+                            }
+
+                            DIcon {
+                                anchors.right: parent.right
+                                anchors.rightMargin: SettingsMetrics.resetChipPaddingH - Theme.spacingXXS
+                                anchors.verticalCenter: parent.verticalCenter
+                                name: "restart_alt"
+                                size: Theme.iconSizeSmall
+                                color: Theme.surfaceVariantText
+                            }
+
+                            StateLayer {
+                                control: chip
+                                stateColor: root.titleColor
+                                tooltipText: I18n.tr("Reset to default", "settings row button restoring the density default")
+                            }
+                        }
+                    }
+
+                    StyledText {
+                        id: titleText
+                        anchors.left: parent.left
+                        width: parent.width - (titleLine.resettable ? titleLine.chipTrailing : 0)
+                        text: root.title
+                        font.pixelSize: Theme.fontSizeMedium
+                        font.weight: Theme.fontWeightMedium
+                        color: root.titleColor
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignLeft
+                    }
+                }
+
+                StyledText {
+                    width: parent.width
+                    text: root.subtitle
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: root.subtitleColor
+                    wrapMode: Text.WordWrap
+                    visible: root.subtitle !== ""
+                    horizontalAlignment: Text.AlignLeft
+                }
+            }
+
+            Row {
+                id: trailingArea
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.spacingS
+                visible: trailingSlot.children.length > 0 || root.showChevron || root.trailingBadge !== ""
+
+                Row {
+                    id: trailingSlot
+                    spacing: Theme.spacingS
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                StyledText {
+                    text: root.trailingBadge
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: root.trailingBadgeColor
+                    visible: root.trailingBadge !== ""
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                DIcon {
+                    name: "chevron_right"
+                    size: Theme.iconSize
+                    color: Theme.surfaceVariantText
+                    rotation: I18n.isRtl ? 180 : 0
+                    visible: root.showChevron
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
+
+        Column {
+            id: bodySlot
+            width: parent.width
+            spacing: Theme.spacingM
+        }
+    }
+}

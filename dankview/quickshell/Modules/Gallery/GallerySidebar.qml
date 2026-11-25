@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import qs.Common
 import qs.Services
+import qs.Widgets
 import qs.DCommon.Common
 import qs.DCommon.Widgets
 
@@ -48,9 +49,66 @@ Item {
     }
     readonly property int utilityIndex: ImageService.settingsOpen ? 1 : ImageService.galleryTab === "trash" ? 0 : -1
 
-    implicitWidth: Style.navigationRailWidth
+    property bool _floatingRevealed: true
+    readonly property bool _isHidden: SettingsData.sidebarFloating && !_floatingRevealed
+    z: 50
+
+    implicitWidth: SettingsData.sidebarFloating ? (_isHidden ? 16 : primaryNavigation.railWidth + Theme.spacingM * 2 + Theme.spacingS) : primaryNavigation.railWidth
     width: implicitWidth
     clip: true
+
+    Behavior on implicitWidth { enabled: Theme.animationsEnabled; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+    HoverHandler {
+        id: sidebarHover
+        onHoveredChanged: {
+            if (hovered) {
+                root._floatingRevealed = true;
+                hideTimer.stop();
+            } else if (SettingsData.sidebarFloating) {
+                hideTimer.restart();
+            }
+        }
+    }
+
+    Timer {
+        id: hideTimer
+        interval: SettingsData.sidebarAutoHideMs || 1500
+        onTriggered: {
+            if (SettingsData.sidebarFloating && !sidebarHover.hovered)
+                root._floatingRevealed = false;
+        }
+    }
+
+    // Edge reveal pill when floating
+    Rectangle {
+        anchors.right: parent.right
+        anchors.rightMargin: 4
+        anchors.verticalCenter: parent.verticalCenter
+        width: 5
+        height: 48
+        radius: 2.5
+        color: Theme.primary
+        opacity: 0.75
+        visible: SettingsData.sidebarFloating
+        z: 5
+    }
+
+    Rectangle {
+        visible: SettingsData.sidebarFloating
+        opacity: root._isHidden ? 0 : 1
+        Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+        anchors.fill: parent
+        anchors.topMargin: Theme.spacingM
+        anchors.bottomMargin: Theme.spacingM
+        anchors.leftMargin: Theme.spacingS
+        anchors.rightMargin: Theme.spacingS
+        radius: Theme.groupedListOuterRadius ?? 16
+        color: Theme.withAlpha(Theme.surfaceContainerHigh, 0.78)
+        border.color: Theme.outlineMedium ?? Theme.outlineVariant
+        border.width: 1
+        clip: true
+    }
 
     function activatePrimary(index) {
         if (index === primaryIndex)
@@ -91,26 +149,30 @@ Item {
     }
 
     ColumnLayout {
+        id: sidebarCol
+        opacity: root._isHidden ? 0 : 1
+        Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
         anchors.fill: parent
-        anchors.topMargin: Theme.spacingM
-        anchors.bottomMargin: Theme.spacingM
-        anchors.leftMargin: Theme.spacingXS
-        anchors.rightMargin: Theme.spacingXS
+        anchors.topMargin: Theme.spacingM + (SettingsData.sidebarFloating ? 12 : 0)
+        anchors.bottomMargin: Theme.spacingM + (SettingsData.sidebarFloating ? 12 : 0)
+        anchors.leftMargin: SettingsData.sidebarFloating ? Theme.spacingL : Theme.spacingM
+        anchors.rightMargin: SettingsData.sidebarFloating ? Theme.spacingL : 0
         spacing: Theme.spacingS
 
         Item {
-            Layout.fillHeight: true
-            visible: SettingsData.sidebarCentered
+            Layout.fillWidth: true
+            Layout.preferredHeight: SettingsData.sidebarCentered ? Math.max(0, (sidebarCol.height - primaryNavigation.implicitHeight - (quickAccessHeading.visible ? quickAccessHeading.height + quickAccessFlick.height + Theme.spacingS * 2 : 0) - utilityNavigation.implicitHeight - Theme.spacingS * 2) / 2) : 0
+            Behavior on Layout.preferredHeight {
+                enabled: Theme.animationsEnabled
+                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+            }
         }
 
-        DNavigationBar {
+        AppSidebarRail {
             id: primaryNavigation
 
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            orientation: Qt.Vertical
-            evenlySpaced: false
-            spacing: Theme.spacingS
             model: root.primaryItems
             currentIndex: root.primaryIndex
             onActivated: index => root.activatePrimary(index)
@@ -125,29 +187,46 @@ Item {
 
             StyledText {
                 anchors.left: parent.left
-                anchors.leftMargin: Theme.spacingM
+                anchors.leftMargin: Theme.spacingS
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.spacingS
                 anchors.verticalCenter: parent.verticalCenter
+                visible: (SettingsData.sidebarStyle || "beside") !== "icons_only"
                 text: "Quick access"
                 font.pixelSize: Theme.fontSizeSmall - 1
                 font.weight: Theme.fontWeightBold
                 color: Theme.surfaceVariantText
+                horizontalAlignment: (SettingsData.sidebarStyle || "beside") === "below" ? Text.AlignHCenter : Text.AlignLeft
+                elide: Text.ElideRight
+            }
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: parent.width - Theme.spacingM * 2
+                height: 1
+                visible: (SettingsData.sidebarStyle || "beside") === "icons_only"
+                color: Theme.outlineVariant
+                opacity: 0.5
             }
         }
 
-        DNavigationBar {
-            id: quickAccessNavigation
-
+        Flickable {
+            id: quickAccessFlick
             Layout.fillWidth: true
-            Layout.minimumHeight: 0
-            Layout.preferredHeight: Math.min(implicitHeight, root.quickAccessAvailableHeight)
+            Layout.preferredHeight: Math.min(quickAccessNavigation.implicitHeight, root.quickAccessAvailableHeight)
             Layout.maximumHeight: root.quickAccessAvailableHeight
+            contentWidth: width
+            contentHeight: quickAccessNavigation.implicitHeight
+            clip: true
             visible: SettingsData.showQuickAccessInSidebar && root.quickAccessItems.length > 0
-            orientation: Qt.Vertical
-            evenlySpaced: false
-            spacing: Theme.spacingS
-            model: root.quickAccessItems
-            currentIndex: root.quickAccessIndex
-            onActivated: index => root.activateQuickAccess(index)
+
+            AppSidebarRail {
+                id: quickAccessNavigation
+                width: parent.width
+                model: root.quickAccessItems
+                currentIndex: root.quickAccessIndex
+                onActivated: index => root.activateQuickAccess(index)
+            }
         }
 
         Item {
@@ -155,14 +234,11 @@ Item {
             Layout.minimumHeight: 0
         }
 
-        DNavigationBar {
+        AppSidebarRail {
             id: utilityNavigation
 
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            orientation: Qt.Vertical
-            evenlySpaced: false
-            spacing: Theme.spacingS
             model: root.utilityItems
             currentIndex: root.utilityIndex
             onActivated: index => root.activateUtility(index)

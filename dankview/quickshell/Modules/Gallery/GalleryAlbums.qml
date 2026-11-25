@@ -435,7 +435,7 @@ Item {
                                 id: addPreviewBox
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 176
-                                radius: 0
+                                radius: Style.cornerRadiusM
                                 color: addCardHover.hovered
                                     ? Theme.surfaceContainerHighest
                                     : Theme.surfaceContainerHigh
@@ -458,7 +458,7 @@ Item {
                                     anchors.centerIn: parent
                                     width: 48
                                     height: 48
-                                    radius: 0
+                                    radius: Style.cornerRadiusS
                                     color: addCardHover.hovered ? Theme.primaryContainer : Theme.surfaceContainerLowest
                                     border.color: addCardHover.hovered ? Theme.primary : M3E.stroke(Theme.outlineVariant, M3E.strokeControl)
                                     border.width: 1
@@ -490,6 +490,7 @@ Item {
                                     font.pixelSize: Theme.fontSizeMedium
                                     font.weight: Theme.fontWeightBold
                                     color: addCardHover.hovered ? Theme.primary : Theme.surfaceText
+                                    horizontalAlignment: Text.AlignHCenter
                                     elide: Text.ElideRight
                                 }
 
@@ -498,6 +499,7 @@ Item {
                                     text: "Choose directory"
                                     font.pixelSize: Theme.fontSizeSmall
                                     color: Theme.surfaceVariantText
+                                    horizontalAlignment: Text.AlignHCenter
                                     elide: Text.ElideRight
                                 }
                             }

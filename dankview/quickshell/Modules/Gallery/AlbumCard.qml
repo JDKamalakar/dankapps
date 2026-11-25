@@ -65,10 +65,11 @@ Item {
 
                 Repeater {
                     model: 4
-                    delegate: Rectangle {
+                    delegate: ClippingRectangle {
                         id: cellClip
                         width: parent.cellW
                         height: parent.cellH
+                        radius: Style.cornerRadiusXS
                         color: Theme.surfaceContainerLowest
 
                         readonly property string imgPath: {
@@ -80,19 +81,20 @@ Item {
                         }
 
                         Image {
+                            id: cellThumb
                             anchors.fill: parent
-                            visible: cellClip.imgPath !== "" && !ImageService.isVideoFile(cellClip.imgPath)
+                            visible: cellClip.imgPath !== ""
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                             cache: true
-                            source: (cellClip.imgPath !== "" && !ImageService.isVideoFile(cellClip.imgPath)) ? ("file://" + cellClip.imgPath) : ""
+                            source: cellClip.imgPath !== "" ? ("file://" + cellClip.imgPath) : ""
                             sourceSize.width: 180
                             sourceSize.height: 180
                         }
 
                         DIcon {
                             anchors.centerIn: parent
-                            visible: cellClip.imgPath === ""
+                            visible: cellClip.imgPath === "" || cellThumb.status !== Image.Ready
                             name: root.isFavAlbum ? "favorite" : "image"
                             size: Style.iconSize
                             color: root.isFavAlbum ? Theme.error : Theme.surfaceVariantText
@@ -118,6 +120,36 @@ Item {
                     pressY = mouse.y;
                     dragging = false;
                 }
+
+            // Pin / Quick Access Button
+            Rectangle {
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: 6
+                width: 28
+                height: 28
+                radius: 14
+                visible: !root.isFavAlbum && !root.canEditCard && (cardHover.hovered || root.isQuickAccess)
+                color: root.isQuickAccess ? Theme.withAlpha(Theme.primary, 0.2) : Theme.withAlpha(Theme.surfaceContainerHighest, 0.85)
+                border.color: root.isQuickAccess ? Theme.primary : Theme.outlineVariant
+                border.width: 1
+
+                DIcon {
+                    anchors.centerIn: parent
+                    name: "keep"
+                    size: 16
+                    color: root.isQuickAccess ? Theme.primary : Theme.surfaceText
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.album && root.album.name)
+                            ImageService.toggleQuickAccess(root.album.name);
+                    }
+                }
+            }
 
                 onPositionChanged: mouse => {
                     if (!root.canEditCard || !pressed) return;

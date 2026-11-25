@@ -342,8 +342,8 @@ Item {
                 Repeater {
                     model: [
                         { icon: "menu_book", accent: "blue", title: "Docs", subtitle: "duxlabs.dev/docs", url: "https://duxlabs.dev/docs" },
-                        { icon: "code", accent: "purple", title: "GitHub", subtitle: "github.com/JD-Danklinux/dankapps", url: "https://github.com/JD-Danklinux/dankapps" },
-                        { icon: "gavel", accent: "green", title: "License", subtitle: "MIT License", url: "https://github.com/JD-Danklinux/dankapps/blob/master/LICENSE" }
+                        { icon: "code", accent: "purple", title: "GitHub", subtitle: "github.com/JDKamalakar/dankapps", url: "https://github.com/JDKamalakar/dankapps" },
+                        { icon: "gavel", accent: "green", title: "License", subtitle: "MIT License", url: "https://github.com/JDKamalakar/dankapps/blob/master/LICENSE" }
                     ]
 
                     SettingsRow {

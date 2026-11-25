@@ -17,13 +17,14 @@ Item {
     property string currentSection: SettingsData.libraryDefaultTab || "all" // "all", "playlists", "folders"
     property string selectedFolderName: ""
     property var selectedPlaylistObj: null
-    property var quickAccessFolders: []
+    readonly property var quickAccessFolders: SettingsData.quickAccessFolders || []
+    property bool includeHidden: SettingsData.videoIncludeHidden || false
     function toggleQuickAccessFolder(folderName) {
-        const list = quickAccessFolders.slice();
+        const list = (SettingsData.quickAccessFolders || []).slice();
         const idx = list.indexOf(folderName);
         if (idx === -1) list.push(folderName);
         else list.splice(idx, 1);
-        quickAccessFolders = list;
+        SettingsData.quickAccessFolders = list;
     }
     property string sortOrder: "newest" // "newest", "oldest", "az", "za"
     property string dateFilter: "all" // "all", "today", "7d", "30d"
@@ -55,6 +56,9 @@ Item {
         const copy = Object.assign({}, viewStates);
         copy[currentViewKey] = { sortOrder: sortOrder, dateFilter: dateFilter, gridItemSize: gridItemSize };
         viewStates = copy;
+        SettingsData.videoSortOrder = sortOrder;
+        SettingsData.videoDateFilter = dateFilter;
+        SettingsData.videoGridItemSize = gridItemSize;
     }
 
     onSortOrderChanged: _saveViewState()
@@ -71,6 +75,13 @@ Item {
         } else if (root.currentSection === "playlists" && root.selectedPlaylistObj) {
             const paths = root.selectedPlaylistObj.items || [];
             list = list.filter(v => paths.indexOf(v.path) !== -1);
+        }
+
+        if (!root.includeHidden) {
+            list = list.filter(v => {
+                const name = v.name || "";
+                return !name.startsWith(".");
+            });
         }
 
         if (root.dateFilter !== "all") {
@@ -155,34 +166,103 @@ Item {
         anchors.bottom: parent.bottom
 
         // Unified Left Navigation Sidebar
+        MouseArea {
+            anchors.fill: parent
+            z: 45
+            visible: SettingsData.sidebarFloating && sidebar._floatingRevealed
+            onPressed: mouse => {
+                sidebar._floatingRevealed = false;
+                mouse.accepted = false;
+            }
+        }
+
         Item {
             id: sidebar
+            z: 50
+            property bool _floatingRevealed: true
+            readonly property bool _isHidden: SettingsData.sidebarFloating && !_floatingRevealed
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: Style.navigationRailWidth
+            width: SettingsData.sidebarFloating ? (_isHidden ? 16 : videoPrimaryNav.railWidth + Theme.spacingM * 2 + Theme.spacingS) : videoPrimaryNav.railWidth
 
-            ColumnLayout {
+            Behavior on width { enabled: Theme.animationsEnabled; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+            HoverHandler {
+                id: videoSidebarHover
+                onHoveredChanged: {
+                    if (hovered) {
+                        sidebar._floatingRevealed = true;
+                        videoHideTimer.stop();
+                    } else if (SettingsData.sidebarFloating) {
+                        videoHideTimer.restart();
+                    }
+                }
+            }
+
+            Timer {
+                id: videoHideTimer
+                interval: SettingsData.sidebarAutoHideMs || 1500
+                onTriggered: {
+                    if (SettingsData.sidebarFloating && !videoSidebarHover.hovered)
+                        sidebar._floatingRevealed = false;
+                }
+            }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                width: 5
+                height: 48
+                radius: 2.5
+                color: Theme.primary
+                opacity: 0.75
+                visible: SettingsData.sidebarFloating
+                z: 5
+            }
+
+            Rectangle {
+                visible: SettingsData.sidebarFloating
+                opacity: sidebar._isHidden ? 0 : 1
+                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                 anchors.fill: parent
                 anchors.topMargin: Theme.spacingM
                 anchors.bottomMargin: Theme.spacingM
-                anchors.leftMargin: Theme.spacingXS
-                anchors.rightMargin: Theme.spacingXS
+                anchors.leftMargin: Theme.spacingS
+                anchors.rightMargin: Theme.spacingS
+                radius: Theme.groupedListOuterRadius ?? 16
+                color: Theme.withAlpha(Theme.surfaceContainerHigh, 0.78)
+                border.color: Theme.outlineMedium ?? Theme.outlineVariant
+                border.width: 1
+                clip: true
+            }
+
+            ColumnLayout {
+                id: videoSidebarCol
+                opacity: sidebar._isHidden ? 0 : 1
+                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                anchors.fill: parent
+                anchors.topMargin: Theme.spacingM + (SettingsData.sidebarFloating ? 12 : 0)
+                anchors.bottomMargin: Theme.spacingM + (SettingsData.sidebarFloating ? 12 : 0)
+                anchors.leftMargin: SettingsData.sidebarFloating ? Theme.spacingL : Theme.spacingM
+                anchors.rightMargin: SettingsData.sidebarFloating ? Theme.spacingL : 0
                 spacing: Theme.spacingS
 
                 Item {
-                    Layout.fillHeight: true
-                    visible: SettingsData.sidebarCentered
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: SettingsData.sidebarCentered ? Math.max(0, (videoSidebarCol.height - videoPrimaryNav.implicitHeight - videoBottomNav.implicitHeight - Theme.spacingS * 2) / 2) : 0
+                    Behavior on Layout.preferredHeight {
+                        enabled: Theme.animationsEnabled
+                        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                    }
                 }
 
-                DNavigationBar {
+                AppSidebarRail {
+                    id: videoPrimaryNav
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
                     Layout.alignment: Qt.AlignTop
-                    orientation: Qt.Vertical
-                    evenlySpaced: false
-                    spacing: Theme.spacingS
-                    labelFontSize: Theme.fontSizeMedium
                     model: [
                         { icon: "movie", text: "All Videos" },
                         { icon: "playlist_play", text: "Playlists" },
@@ -211,23 +291,33 @@ Item {
 
                     StyledText {
                         anchors.left: parent.left
-                        anchors.leftMargin: Theme.spacingM
+                        anchors.leftMargin: Theme.spacingS
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.spacingS
                         anchors.verticalCenter: parent.verticalCenter
+                        visible: (SettingsData.sidebarStyle || "beside") !== "icons_only"
                         text: "Quick access"
                         font.pixelSize: Theme.fontSizeSmall - 1
                         font.weight: Theme.fontWeightBold
                         color: Theme.surfaceVariantText
+                        horizontalAlignment: (SettingsData.sidebarStyle || "beside") === "below" ? Text.AlignHCenter : Text.AlignLeft
+                        elide: Text.ElideRight
+                    }
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: parent.width - Theme.spacingM * 2
+                        height: 1
+                        visible: (SettingsData.sidebarStyle || "beside") === "icons_only"
+                        color: Theme.outlineVariant
+                        opacity: 0.5
                     }
                 }
 
-                DNavigationBar {
+                AppSidebarRail {
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
                     visible: SettingsData.showFavoriteAlbumsInSidebar && root.quickAccessFolders.length > 0
-                    orientation: Qt.Vertical
-                    evenlySpaced: false
-                    spacing: Theme.spacingS
-                    labelFontSize: Theme.fontSizeMedium
                     model: root.quickAccessFolders.map(name => ({ icon: "folder", text: name }))
                     currentIndex: root.currentSection === "folders" ? root.quickAccessFolders.indexOf(root.selectedFolderName) : -1
                     onActivated: index => {
@@ -244,13 +334,10 @@ Item {
                 }
 
                 // Settings Button Unified at Sidebar Bottom
-                DNavigationBar {
+                AppSidebarRail {
+                    id: videoBottomNav
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
-                    orientation: Qt.Vertical
-                    evenlySpaced: false
-                    spacing: Theme.spacingS
-                    labelFontSize: Theme.fontSizeMedium
                     model: [{ icon: "settings", text: "Settings" }]
                     currentIndex: VideoService.settingsOpen ? 0 : -1
                     onActivated: {
@@ -263,7 +350,7 @@ Item {
         // Main Content Card
         Rectangle {
             id: mainContentCard
-            anchors.left: sidebar.right
+            anchors.left: SettingsData.sidebarFloating ? parent.left : sidebar.right
             anchors.leftMargin: Theme.spacingM
             anchors.top: parent.top
             anchors.topMargin: Theme.spacingM
@@ -284,7 +371,7 @@ Item {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 height: 48
-                visible: root.currentSection !== "all" || (root.selectedFolderName !== "" || root.selectedPlaylistObj !== null)
+                visible: (root.currentSection !== "all" && !(root.currentSection === "folders" && root.selectedFolderName === "")) || (root.selectedFolderName !== "" || root.selectedPlaylistObj !== null)
                 color: Theme.surfaceContainerHigh
                 topLeftRadius: Theme.cornerRadiusXL
                 topRightRadius: Theme.cornerRadiusXL
@@ -433,9 +520,10 @@ Item {
                 id: foldersGridView
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.top: sectionHeaderBar.bottom
+                anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 anchors.margins: Theme.spacingM
+                topMargin: 72
                 contentWidth: width
                 contentHeight: albumsColumn.implicitHeight + Theme.spacingM
                 clip: true
@@ -474,7 +562,11 @@ Item {
                             spacing: Style.spacingL
 
                             Repeater {
-                                model: root.quickAccessFolders
+                                model: {
+                                    const q = (VideoService.searchQuery || "").trim().toLowerCase();
+                                    const list = root.quickAccessFolders || [];
+                                    return q ? list.filter(c => c.toLowerCase().indexOf(q) !== -1) : list;
+                                }
                                 delegate: Item {
                                     id: qaFolderDelegate
                                     required property string modelData
@@ -514,10 +606,11 @@ Item {
 
                                                 Repeater {
                                                     model: 4
-                                                    delegate: Rectangle {
+                                                    delegate: ClippingRectangle {
                                                         id: qaCellClip
                                                         width: parent.cellW
                                                         height: parent.cellH
+                                                        radius: Style.cornerRadiusXS
                                                         color: Theme.surfaceContainerLowest
                                                         readonly property string thumbPath: {
                                                             const vids = qaFolderDelegate.albumVideos;
@@ -554,16 +647,30 @@ Item {
                                                 onClicked: root.selectedFolderName = qaFolderDelegate.modelData
                                             }
 
-                                            DIconButton {
+                                            Rectangle {
                                                 anchors.top: parent.top
                                                 anchors.right: parent.right
                                                 anchors.margins: 6
-                                                visible: qaFolderHover.hovered
-                                                iconName: "keep_off"
-                                                size: "xs"
-                                                variant: "filled"
-                                                tooltipText: "Remove from Quick Access"
-                                                onClicked: root.toggleQuickAccessFolder(qaFolderDelegate.modelData)
+                                                width: 28
+                                                height: 28
+                                                radius: 14
+                                                visible: qaFolderHover.hovered || true
+                                                color: Theme.withAlpha(Theme.primary, 0.2)
+                                                border.color: Theme.primary
+                                                border.width: 1
+
+                                                DIcon {
+                                                    anchors.centerIn: parent
+                                                    name: "keep"
+                                                    size: 16
+                                                    color: Theme.primary
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.toggleQuickAccessFolder(qaFolderDelegate.modelData)
+                                                }
                                             }
                                         }
 
@@ -596,6 +703,7 @@ Item {
                             // Empty album card with (+) to add folder
                             Item {
                                 id: foldersAddCard
+                                visible: false
                                 width: 176
                                 height: 176 + 36
 
@@ -607,7 +715,7 @@ Item {
                                         id: addPreviewBox
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 176
-                                        radius: 0
+                                        radius: Style.cornerRadiusM
                                         color: addCardHover.hovered
                                             ? Theme.surfaceContainerHighest
                                             : Theme.surfaceContainerHigh
@@ -630,7 +738,7 @@ Item {
                                             anchors.centerIn: parent
                                             width: 48
                                             height: 48
-                                            radius: 0
+                                            radius: Style.cornerRadiusM
                                             color: addCardHover.hovered ? Theme.primaryContainer : Theme.surfaceContainerLowest
                                             border.color: addCardHover.hovered ? Theme.primary : M3E.stroke(Theme.outlineVariant, M3E.strokeControl)
                                             border.width: 1
@@ -707,7 +815,11 @@ Item {
                             spacing: Style.spacingL
 
                             Repeater {
-                                model: (VideoService.galleryData && VideoService.galleryData.categories) ? VideoService.galleryData.categories.filter(c => c !== "All") : []
+                                model: {
+                                    const q = (VideoService.searchQuery || "").trim().toLowerCase();
+                                    const list = (VideoService.galleryData && VideoService.galleryData.categories) ? VideoService.galleryData.categories.filter(c => c !== "All") : [];
+                                    return q ? list.filter(c => c.toLowerCase().indexOf(q) !== -1) : list;
+                                }
 
                                 delegate: Item {
                                     id: folderDelegate
@@ -753,10 +865,11 @@ Item {
 
                                                 Repeater {
                                                     model: 4
-                                                    delegate: Rectangle {
+                                                    delegate: ClippingRectangle {
                                                         id: videoCellClip
                                                         width: parent.cellW
                                                         height: parent.cellH
+                                                        radius: Style.cornerRadiusXS
                                                         color: Theme.surfaceContainerLowest
 
                                                         readonly property string thumbPath: {
@@ -796,16 +909,31 @@ Item {
                                                 onClicked: root.selectedFolderName = folderDelegate.modelData
                                             }
 
-                                            DIconButton {
+                                            Rectangle {
                                                 anchors.top: parent.top
                                                 anchors.right: parent.right
                                                 anchors.margins: 6
-                                                visible: folderHover.hovered
-                                                iconName: root.quickAccessFolders.indexOf(folderDelegate.modelData) !== -1 ? "keep_off" : "keep"
-                                                size: "xs"
-                                                variant: "filled"
-                                                tooltipText: root.quickAccessFolders.indexOf(folderDelegate.modelData) !== -1 ? "Remove from Quick Access" : "Pin to Quick Access"
-                                                onClicked: root.toggleQuickAccessFolder(folderDelegate.modelData)
+                                                width: 28
+                                                height: 28
+                                                radius: 14
+                                                readonly property bool isPinned: root.quickAccessFolders.indexOf(folderDelegate.modelData) !== -1
+                                                visible: folderHover.hovered || isPinned
+                                                color: isPinned ? Theme.withAlpha(Theme.primary, 0.2) : Theme.withAlpha(Theme.surfaceContainerHighest, 0.85)
+                                                border.color: isPinned ? Theme.primary : Theme.outlineVariant
+                                                border.width: 1
+
+                                                DIcon {
+                                                    anchors.centerIn: parent
+                                                    name: "keep"
+                                                    size: 16
+                                                    color: parent.isPinned ? Theme.primary : Theme.surfaceText
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.toggleQuickAccessFolder(folderDelegate.modelData)
+                                                }
                                             }
                                         }
 
@@ -849,7 +977,7 @@ Item {
                                         id: albumsAddPreviewBox
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 176
-                                        radius: 0
+                                        radius: Style.cornerRadiusM
                                         color: albumsAddCardHover.hovered
                                             ? Theme.surfaceContainerHighest
                                             : Theme.surfaceContainerHigh
@@ -872,7 +1000,7 @@ Item {
                                             anchors.centerIn: parent
                                             width: 48
                                             height: 48
-                                            radius: 0
+                                            radius: Style.cornerRadiusM
                                             color: albumsAddCardHover.hovered ? Theme.primaryContainer : Theme.surfaceContainerLowest
                                             border.color: albumsAddCardHover.hovered ? Theme.primary : M3E.stroke(Theme.outlineVariant, M3E.strokeControl)
                                             border.width: 1
@@ -1008,13 +1136,137 @@ Item {
                         }
                     }
                 }
+                // Top-center floating refresh indicator (Android Chrome style)
+                DLoadingIndicator {
+                    contained: true
+                    visible: VideoService.isGalleryLoading
+                    anchors.top: parent.top
+                    anchors.topMargin: sectionHeaderBar.visible ? 120 : 72
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    z: 20
+                }
 
-                // Floating M3E Search Bar + Segmented Buttons (Refresh -> Search -> Filter | Open)
-                Item {
-                    id: searchBarGroup
+                // Video Grid View with equal left/right gaps
+                GridView {
+                    id: videoGridView
+                    readonly property real gridGap: Theme.spacingM
+                    readonly property real availW: Math.max(100, mainContentCard.width - Theme.spacingM * 2)
+                    readonly property int cols: Math.max(1, Math.floor((availW + gridGap) / (root.gridItemSize + gridGap)))
+                    readonly property real actualTileSize: (availW - (cols - 1) * gridGap) / cols
+
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.spacingM
+                    anchors.top: parent.top
+                    anchors.topMargin: Theme.spacingM
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: Theme.spacingM
+                    width: availW + gridGap
+                    topMargin: root.currentSection === "all" ? 68 : 0
+                    cellWidth: actualTileSize + gridGap
+                    cellHeight: actualTileSize + gridGap
+                    clip: true
+                    maximumFlickVelocity: 4500
+                    flickDeceleration: 2200
+                    visible: !root.groupByDate && root.filteredVideos.length > 0
+                    model: root.filteredVideos
+
+                    Behavior on contentY {
+                        NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+                    }
+
+                    WheelHandler {
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        onWheel: event => {
+                            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y * 1.8 : (event.angleDelta.y / 120) * 180;
+                            const maxY = Math.max(0, videoGridView.contentHeight - videoGridView.height);
+                            videoGridView.contentY = Math.max(0, Math.min(maxY, videoGridView.contentY - delta));
+                            event.accepted = true;
+                        }
+                    }
+
+                    delegate: VideoGalleryThumbnail {
+                        itemSize: videoGridView.actualTileSize
+                        isFirstInGroup: (index % Math.max(1, videoGridView.cols)) === 0
+                        isLastInGroup: (index % Math.max(1, videoGridView.cols)) === Math.max(1, videoGridView.cols) - 1 || index === videoGridView.count - 1
+                    }
+
+                    displaced: Transition {
+                        NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic }
+                    }
+                    move: Transition {
+                        NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic }
+                    }
+                    add: Transition {
+                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
+                    }
+                    remove: Transition {
+                        NumberAnimation { property: "opacity"; to: 0; duration: 150; easing.type: Easing.OutCubic }
+                    }
+                }
+
+                // Date-Grouped Video View
+                DListView {
+                    id: groupedVideoList
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.topMargin: sectionHeaderBar.visible ? 124 : 76
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: Theme.spacingM
+                    anchors.leftMargin: Theme.spacingM
+                    anchors.rightMargin: Theme.spacingM
+                    topMargin: 0
+                    spacing: Theme.spacingL
+                    clip: true
+                    maximumFlickVelocity: 4500
+                    flickDeceleration: 2200
+                    visible: root.groupByDate && root.filteredVideos.length > 0
+                    model: root.groupedVideos
+
+                    delegate: Column {
+                        id: grpCol
+                        required property var modelData
+                        width: groupedVideoList.width
+                        height: implicitHeight
+                        spacing: Theme.spacingS
+
+                        StyledText {
+                            text: grpCol.modelData.title
+                            font.pixelSize: Theme.fontSizeMedium
+                            font.weight: Font.DemiBold
+                            color: Theme.surfaceText
+                        }
+
+                        Grid {
+                            width: parent.width
+                            columns: videoGridView.cols
+                            columnSpacing: videoGridView.gridGap
+                            rowSpacing: videoGridView.gridGap
+
+                            Repeater {
+                                model: grpCol.modelData.items
+                                delegate: VideoGalleryThumbnail {
+                                    itemSize: videoGridView.actualTileSize
+                                    isFirstInGroup: (index % Math.max(1, videoGridView.cols)) === 0
+                                    isLastInGroup: (index % Math.max(1, videoGridView.cols)) === Math.max(1, videoGridView.cols) - 1 || index === grpCol.modelData.items.length - 1
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Floating M3E Search Bar + Segmented Buttons (Refresh -> Search -> Filter | Open)
+            Item {
+                id: searchBarGroup
                     readonly property int expandedSearchWidth: Math.min(340, mainContentCard.width - refreshPill.width - filterPill.width - openFilePill.width - 64)
                     readonly property int collapsedSearchWidth: 48
-                    readonly property bool isCollapsed: videoGridView.contentY > 24 && !searchBoxInput.activeFocus && VideoService.searchQuery === ""
+                    readonly property bool isCollapsed: {
+                        const cy = videoGridView.visible ? videoGridView.contentY
+                            : (groupedVideosListView.visible ? groupedVideosListView.contentY
+                            : (foldersGridView.visible ? foldersGridView.contentY : playlistsListView.contentY));
+                        return cy > 24 && !searchBoxInput.activeFocus && VideoService.searchQuery === "";
+                    }
                     property real pillGap: isCollapsed ? Math.max(2, Math.round(Theme.spacingXS * 0.5)) : Theme.spacingS
                     readonly property real totalWidth: refreshPill.width + pillGap + (isCollapsed ? collapsedSearchWidth : expandedSearchWidth) + pillGap + filterPill.width + pillGap + openFilePill.width
 
@@ -1304,131 +1556,11 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: VideoService.openFileDialog()
                         }
-                    }
                 }
 
-                // Top-center floating refresh indicator (Android Chrome style)
-                DLoadingIndicator {
-                    contained: true
-                    visible: VideoService.isGalleryLoading
-                    anchors.top: parent.top
-                    anchors.topMargin: sectionHeaderBar.visible ? 120 : 72
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    z: 20
-                }
 
-                // Video Grid View with equal left/right gaps
-                GridView {
-                    id: videoGridView
-                    readonly property real gridGap: Theme.spacingM
-                    readonly property real availW: Math.max(100, mainContentCard.width - Theme.spacingM * 2)
-                    readonly property int cols: Math.max(1, Math.floor((availW + gridGap) / (root.gridItemSize + gridGap)))
-                    readonly property real actualTileSize: (availW - (cols - 1) * gridGap) / cols
-
-                    anchors.left: parent.left
-                    anchors.leftMargin: Theme.spacingM
-                    anchors.top: parent.top
-                    anchors.topMargin: Theme.spacingM
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: Theme.spacingM
-                    width: availW + gridGap
-                    topMargin: root.currentSection === "all" ? 68 : 0
-                    cellWidth: actualTileSize + gridGap
-                    cellHeight: actualTileSize + gridGap
-                    clip: true
-                    maximumFlickVelocity: 4500
-                    flickDeceleration: 2200
-                    visible: !root.groupByDate && root.filteredVideos.length > 0
-                    model: root.filteredVideos
-
-                    Behavior on contentY {
-                        NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
-                    }
-
-                    WheelHandler {
-                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                        onWheel: event => {
-                            const delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y * 1.8 : (event.angleDelta.y / 120) * 180;
-                            const maxY = Math.max(0, videoGridView.contentHeight - videoGridView.height);
-                            videoGridView.contentY = Math.max(0, Math.min(maxY, videoGridView.contentY - delta));
-                            event.accepted = true;
-                        }
-                    }
-
-                    delegate: VideoGalleryThumbnail {
-                        itemSize: videoGridView.actualTileSize
-                        isFirstInGroup: (index % Math.max(1, videoGridView.cols)) === 0
-                        isLastInGroup: (index % Math.max(1, videoGridView.cols)) === Math.max(1, videoGridView.cols) - 1 || index === videoGridView.count - 1
-                    }
-
-                    displaced: Transition {
-                        NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic }
-                    }
-                    move: Transition {
-                        NumberAnimation { properties: "x,y"; duration: 220; easing.type: Easing.OutCubic }
-                    }
-                    add: Transition {
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 180; easing.type: Easing.OutCubic }
-                    }
-                    remove: Transition {
-                        NumberAnimation { property: "opacity"; to: 0; duration: 150; easing.type: Easing.OutCubic }
-                    }
-                }
-
-                // Date-Grouped Video View
-                DListView {
-                    id: groupedVideoList
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.topMargin: sectionHeaderBar.visible ? 124 : 76
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: Theme.spacingM
-                    anchors.leftMargin: Theme.spacingM
-                    anchors.rightMargin: Theme.spacingM
-                    topMargin: 0
-                    spacing: Theme.spacingL
-                    clip: true
-                    maximumFlickVelocity: 4500
-                    flickDeceleration: 2200
-                    visible: root.groupByDate && root.filteredVideos.length > 0
-                    model: root.groupedVideos
-
-                    delegate: Column {
-                        id: grpCol
-                        required property var modelData
-                        width: groupedVideoList.width
-                        height: implicitHeight
-                        spacing: Theme.spacingS
-
-                        StyledText {
-                            text: grpCol.modelData.title
-                            font.pixelSize: Theme.fontSizeMedium
-                            font.weight: Font.DemiBold
-                            color: Theme.surfaceText
-                        }
-
-                        Grid {
-                            width: parent.width
-                            columns: videoGridView.cols
-                            columnSpacing: videoGridView.gridGap
-                            rowSpacing: videoGridView.gridGap
-
-                            Repeater {
-                                model: grpCol.modelData.items
-                                delegate: VideoGalleryThumbnail {
-                                    itemSize: videoGridView.actualTileSize
-                                    isFirstInGroup: (index % Math.max(1, videoGridView.cols)) === 0
-                                    isLastInGroup: (index % Math.max(1, videoGridView.cols)) === Math.max(1, videoGridView.cols) - 1 || index === grpCol.modelData.items.length - 1
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
-
     // Live Filter & Sort Floating Window (All Videos)
     VideoFilterSortDialog {
         id: videoFilterDialog
@@ -1436,6 +1568,8 @@ Item {
         sortOrder: root.sortOrder
         gridItemSize: root.gridItemSize
         groupByDate: root.groupByDate
+        includeHidden: root.includeHidden
+        onIncludeHiddenToggled: val => root.includeHidden = val
         onDateFilterSelected: val => root.dateFilter = val
         onSortOrderSelected: val => root.sortOrder = val
         onItemSizeSelected: val => root.gridItemSize = val
@@ -1556,4 +1690,5 @@ Item {
             }
         }
     }
+}
 }

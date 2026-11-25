@@ -61,6 +61,16 @@ Item {
     }
 
     // Left Sidebar Navigation (Timeline, Albums, Settings)
+    MouseArea {
+        anchors.fill: parent
+        z: 45
+        visible: SettingsData.sidebarFloating && sidebar._floatingRevealed
+        onPressed: mouse => {
+            sidebar._floatingRevealed = false;
+            mouse.accepted = false;
+        }
+    }
+
     GallerySidebar {
         id: sidebar
         anchors.left: parent.left
@@ -72,7 +82,7 @@ Item {
     // Main Content Card (Rounded container adjacent to sidebar, matching M3 / DankCalendar aesthetic)
     Rectangle {
         id: mainArea
-        anchors.left: sidebar.right
+        anchors.left: SettingsData.sidebarFloating ? parent.left : sidebar.right
         anchors.leftMargin: Style.spacingS
         anchors.right: parent.right
         anchors.rightMargin: Style.spacingM

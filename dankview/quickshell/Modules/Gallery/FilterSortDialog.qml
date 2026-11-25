@@ -24,10 +24,10 @@ FloatingWindow {
     }
 
     title: "Filter & Sort Settings"
-    implicitWidth: 880
-    implicitHeight: Math.min(680, cardContent.implicitHeight + 48)
-    minimumSize: Qt.size(880, implicitHeight)
-    maximumSize: Qt.size(880, implicitHeight)
+    implicitWidth: 980
+    implicitHeight: Math.min(680, cardContent.implicitHeight + 40)
+    minimumSize: Qt.size(980, implicitHeight)
+    maximumSize: Qt.size(980, implicitHeight)
     color: Theme.windowSurface
     surfaceFormat.opaque: false
     visible: false
@@ -109,10 +109,16 @@ FloatingWindow {
                     }
                 }
 
-                SettingsCard {
+                RowLayout {
                     Layout.fillWidth: true
-                    title: "Filter"
-                    iconName: "filter_alt"
+                    spacing: Theme.spacingM
+
+                    SettingsCard {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: 1
+                        title: "Filter"
+                        iconName: "filter_alt"
 
                     SettingsButtonGroupRow {
                         iconName: "perm_media"
@@ -160,10 +166,12 @@ FloatingWindow {
                     }
                 }
 
-                SettingsCard {
-                    Layout.fillWidth: true
-                    title: "Sort & Layout"
-                    iconName: "sort"
+                    SettingsCard {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: 1
+                        title: "Sort & Layout"
+                        iconName: "sort"
 
                     SettingsButtonGroupRow {
                         iconName: "swap_vert"
@@ -196,6 +204,7 @@ FloatingWindow {
                         step: 1
                         value: ImageService.galleryZoomLevel || 3
                         onSliderValueChanged: v => ImageService.galleryZoomLevel = v
+                    }
                     }
                 }
             }

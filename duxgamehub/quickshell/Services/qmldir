@@ -1,0 +1,2 @@
+singleton PluginService 1.0 PluginService.qml
+singleton ToastService 1.0 ToastService.qml

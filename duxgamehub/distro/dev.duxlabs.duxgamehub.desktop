@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=DUX Game Hub
+GenericName=Game Launcher & Hub
+Comment=Unified Linux Game Launcher & Fullscreen Hub
+Exec=sh -c "PATH=$HOME/.local/bin:$PATH exec dgamehub \"$@\"" -- %u
+Icon=dev.duxlabs.duxgamehub
+Terminal=false
+Type=Application
+Categories=Game;Qt;
+Keywords=games;launcher;steam;lutris;heroic;dank;dux;
+StartupNotify=true
+StartupWMClass=dev.duxlabs.duxgamehub

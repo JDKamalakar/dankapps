@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import qs.Common
 import qs.Services
+import qs.Widgets
 import qs.DCommon.Common
 import qs.DCommon.Widgets
 import "."
@@ -281,48 +282,119 @@ FloatingWindow {
 
                     // Persistent Left Sidebar
                     Item {
+                        id: calcSidebar
+                        property bool _floatingRevealed: true
+                        readonly property bool _isHidden: SettingsData.sidebarFloating && !_floatingRevealed
+                        z: 50
+                        clip: true
                         Layout.fillHeight: true
-                        Layout.preferredWidth: Style.navigationRailWidth
+                        Layout.preferredWidth: SettingsData.sidebarFloating ? 16 : calcPrimaryNav.railWidth
+                        width: SettingsData.sidebarFloating ? (_isHidden ? 16 : calcPrimaryNav.railWidth + Theme.spacingM * 2 + Theme.spacingS) : calcPrimaryNav.railWidth
 
-                        ColumnLayout {
+                        Behavior on width { enabled: Theme.animationsEnabled; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+                        HoverHandler {
+                            id: calcSidebarHover
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    calcSidebar._floatingRevealed = true;
+                                    calcHideTimer.stop();
+                                } else if (SettingsData.sidebarFloating) {
+                                    calcHideTimer.restart();
+                                }
+                            }
+                        }
+
+                        Timer {
+                            id: calcHideTimer
+                            interval: SettingsData.sidebarAutoHideMs || 1500
+                            onTriggered: {
+                                if (SettingsData.sidebarFloating && !calcSidebarHover.hovered)
+                                    calcSidebar._floatingRevealed = false;
+                            }
+                        }
+
+                        Rectangle {
+                            anchors.right: parent.right
+                            anchors.rightMargin: 4
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 5
+                            height: 48
+                            radius: 2.5
+                            color: Theme.primary
+                            opacity: 0.75
+                            visible: SettingsData.sidebarFloating
+                            z: 5
+                        }
+
+                        Rectangle {
+                            visible: SettingsData.sidebarFloating
+                            opacity: calcSidebar._isHidden ? 0 : 1
+                            Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                             anchors.fill: parent
                             anchors.topMargin: Theme.spacingS
                             anchors.bottomMargin: Theme.spacingS
+                            anchors.leftMargin: Theme.spacingS
+                            anchors.rightMargin: Theme.spacingS
+                            radius: Theme.groupedListOuterRadius ?? 16
+                            color: Theme.withAlpha(Theme.surfaceContainerHigh, 0.78)
+                            border.color: Theme.outlineMedium ?? Theme.outlineVariant
+                            border.width: 1
+                            clip: true
+                        }
+
+                        ColumnLayout {
+                            id: calcSidebarCol
+                            opacity: calcSidebar._isHidden ? 0 : 1
+                            Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                            anchors.fill: parent
+                            anchors.topMargin: Theme.spacingS + (SettingsData.sidebarFloating ? 12 : 0)
+                            anchors.bottomMargin: Theme.spacingS + (SettingsData.sidebarFloating ? 12 : 0)
+                            anchors.leftMargin: SettingsData.sidebarFloating ? Theme.spacingL : Theme.spacingM
+                            anchors.rightMargin: SettingsData.sidebarFloating ? Theme.spacingL : Theme.spacingS
                             spacing: 0
 
                             Item {
-                                Layout.fillHeight: true
-                                visible: SettingsData.sidebarCentered
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: SettingsData.sidebarCentered ? Math.max(0, (calcSidebarCol.height - calcPrimaryNav.implicitHeight - calcBottomNav.implicitHeight) / 2) : 0
+                                Behavior on Layout.preferredHeight {
+                                    enabled: Theme.animationsEnabled
+                                    NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                                }
                             }
 
-                            DNavigationBar {
+                            AppSidebarRail {
+                                id: calcPrimaryNav
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: implicitHeight
                                 Layout.alignment: Qt.AlignTop
-                                orientation: Qt.Vertical
-                                evenlySpaced: false
-                                spacing: Theme.spacingS
-                                labelFontSize: Theme.fontSizeMedium
                                 model: [
                                     { icon: "calculate", text: "Calculator" },
-                                    { icon: "swap_horiz", text: "Converter" }
+                                    { icon: "swap_horiz", text: "Converter" },
+                                    { icon: "currency_exchange", text: "Currency" }
                                 ]
-                                currentIndex: CalculatorService.currentMode === "calculator" ? 0 : 1
+                                currentIndex: CalculatorService.currentMode === "calculator" ? 0 : (CalculatorService.converterCategory === "currency" ? 2 : 1)
                                 onActivated: index => {
-                                    CalculatorService.setMode(index === 0 ? "calculator" : "converter");
+                                    if (index === 0) {
+                                        CalculatorService.setMode("calculator");
+                                    } else if (index === 1) {
+                                        CalculatorService.setMode("converter");
+                                        if (CalculatorService.converterCategory === "currency")
+                                            CalculatorService.setConverterCategory("length");
+                                    } else if (index === 2) {
+                                        CalculatorService.setMode("converter");
+                                        CalculatorService.setConverterCategory("currency");
+                                    }
                                     rootContent.forceActiveFocus();
                                 }
                             }
 
                             Item { Layout.fillHeight: true }
 
-                            DNavigationBar {
+                            AppSidebarRail {
+                                id: calcBottomNav
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: implicitHeight
-                                orientation: Qt.Vertical
-                                evenlySpaced: false
-                                spacing: Theme.spacingS
-                                labelFontSize: Theme.fontSizeMedium
                                 model: [{ icon: "settings", text: "Settings" }]
                                 currentIndex: CalculatorService.settingsOpen ? 0 : -1
                                 onActivated: {
