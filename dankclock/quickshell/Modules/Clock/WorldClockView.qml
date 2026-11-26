@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Layouts
 import qs.Common
 import qs.Services
 import qs.DCommon.Common
@@ -62,55 +63,179 @@ Item {
     readonly property string localMeridiemStr: localTimeParts.meridiem
     readonly property string localDayName: Qt.formatDate(root.effectiveNow, "dddd")
 
-    readonly property bool isWideLayout: width >= 660
+    readonly property string densityMode: SettingsData.density || "comfortable"
+    readonly property bool isSpacious: densityMode === "spacious"
+    readonly property bool isCompact: densityMode === "compact" || densityMode === "dense"
+    readonly property real panelPad: isSpacious ? Theme.spacingXL : (isCompact ? Theme.spacingM : Theme.spacingL)
+    readonly property real panelGap: isSpacious ? Theme.spacingXL : (isCompact ? Theme.spacingM : Theme.spacingL)
 
-    DFlickable {
-        id: flickable
+    RowLayout {
         anchors.fill: parent
-        clip: true
-        interactive: root.draggingIndex < 0
-        contentWidth: width
-        contentHeight: Math.max(height, mainPageColumn.height + ClockMetrics.pagePaddingV + Theme.spacingXL * 4)
+        anchors.margins: root.panelPad
+        spacing: root.panelGap
 
-        Column {
-            id: mainPageColumn
-            topPadding: Theme.spacingL
-            width: Math.min(ClockMetrics.contentMaxWidth, parent.width - Theme.spacingL * 2)
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: ClockMetrics.cardGap
+        // LEFT PANEL (~70% width, full height): Analog World Dial Card
+        Rectangle {
+            id: dialCard
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-            // Row 1: Dedicated Clock Row (Centered Analog World Dial)
+            readonly property real cardPad: root.isSpacious ? Theme.spacingXL : (root.isCompact ? Theme.spacingM : Theme.spacingL)
+            readonly property real dialSize: Math.min(540, Math.max(180, Math.min(width - cardPad * 2, height - cardPad * 2 - 44)))
+
+            radius: Theme.cornerRadiusXL
+            color: dialCardHover.hovered ? Theme.surfaceContainerHighest : ClockMetrics.rowColor
+            border.width: Theme.layerOutlineWidth
+            border.color: root.isScrubbing ? Theme.primary : (dialCardHover.hovered ? Theme.outline : Theme.outlineMedium)
+
+            Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: ClockMetrics.fadeDuration } }
+            Behavior on border.color { enabled: Theme.animationsEnabled; ColorAnimation { duration: ClockMetrics.fadeDuration } }
+
+            HoverHandler { id: dialCardHover }
+
             Item {
-                id: clockRow
-                width: parent.width
-                height: 340
+                anchors.fill: parent
+                anchors.margins: dialCard.cardPad
+
+                Row {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: 30
+                    spacing: Theme.spacingS
+
+                    DBadge {
+                        text: root.scrubDeltaLabel
+                        color: root.isScrubbing ? Theme.primary : Theme.secondaryContainer
+                        textColor: root.isScrubbing ? Theme.onPrimary : Theme.onSecondaryContainer
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    StyledText {
+                        text: `${root.localDayName} • ${root.localTimeStr}${root.localMeridiemStr ? " " + root.localMeridiemStr : ""}`
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.weight: Theme.fontWeightBold
+                        color: Theme.surfaceText
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    DButton {
+                        visible: root.isScrubbing
+                        text: "Live"
+                        iconName: "restart_alt"
+                        buttonHeight: Theme.buttonHeightXXS
+                        backgroundColor: Theme.primaryContainer
+                        textColor: Theme.onPrimaryContainer
+                        anchors.verticalCenter: parent.verticalCenter
+                        onClicked: root.scrubMinutesOffset = 0
+                    }
+                }
 
                 AnalogWorldDial {
-                    width: 340
-                    height: 340
+                    width: dialCard.dialSize
+                    height: dialCard.dialSize
                     anchors.centerIn: parent
+                    anchors.verticalCenterOffset: 14
                 }
             }
+        }
 
-            // Row 2: Cities Grid Row below the Clock (3 per row on normal/wide window)
-            Item {
-                id: cardsGridContainer
-                width: parent.width
-                height: citiesGrid.implicitHeight
+        // RIGHT PANEL (30% width, full height): Cities List + Add City Card
+        DFlickable {
+            id: rightFlickable
+            Layout.preferredWidth: Math.max(240, Math.round(root.width * 0.30))
+            Layout.minimumWidth: 220
+            Layout.fillHeight: true
+            clip: true
+            interactive: root.draggingIndex < 0
+            contentWidth: width
+            contentHeight: rightCol.implicitHeight + Theme.spacingXL
 
-                readonly property real gap: Theme.spacingM
-                readonly property int cols: width >= 600 ? 3 : (width >= 400 ? 2 : 1)
-                readonly property real pillWidth: Math.floor((width - (cols - 1) * gap) / cols)
+            Column {
+                id: rightCol
+                x: 4
+                width: Math.max(0, rightFlickable.width - 8)
+                spacing: root.isSpacious ? Theme.spacingM : (root.isCompact ? Theme.spacingXS : Theme.spacingS)
 
-                WorldCardsGrid {
-                    id: citiesGrid
+                ClockSectionLabel {
                     width: parent.width
-                    columns: cardsGridContainer.cols
-                    spacing: cardsGridContainer.gap
-                    cardWidth: cardsGridContainer.pillWidth
+                    iconName: "public"
+                    text: `Cities (${ClockService.worldClocks.length})`
+                }
+
+                Item {
+                    id: cardsGridContainer
+                    width: parent.width
+                    height: citiesGrid.implicitHeight
+
+                    WorldCardsGrid {
+                        id: citiesGrid
+                        width: parent.width
+                        columns: 1
+                        spacing: 2
+                        cardWidth: parent.width
+                    }
+                }
+
+                // Add City Card
+                Rectangle {
+                    id: addCityCard
+                    width: parent.width
+                    height: root.isSpacious ? 72 : (root.isCompact ? 56 : 64)
+                    radius: Theme.cornerRadiusXL
+                    scale: addCityMouse.pressed ? 0.98 : 1.0
+                    color: addCityHover.hovered ? Theme.withAlpha(Theme.primary, 0.14) : Theme.foregroundColor(Theme.surfaceContainerLow, true)
+                    border.width: addCityHover.hovered ? 1.5 : 1
+                    border.color: addCityHover.hovered ? Theme.primary : Theme.outlineVariant
+
+                    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: ClockMetrics.transitionDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: ClockMetrics.curveFastSpatial } }
+                    Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: ClockMetrics.fadeDuration } }
+
+                    HoverHandler { id: addCityHover }
+
+                    MouseArea {
+                        id: addCityMouse
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: ClockService.citySheetOpen = true
+                    }
+
+                    Item {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spacingM
+                        anchors.rightMargin: Theme.spacingM
+
+                        Row {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.spacingS
+
+                            DIcon {
+                                name: "add_location_alt"
+                                size: Theme.iconSizeSmall
+                                color: Theme.primary
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            StyledText {
+                                text: "Add City"
+                                font.pixelSize: Theme.fontSizeMedium
+                                font.weight: Font.DemiBold
+                                color: addCityHover.hovered ? Theme.primary : Theme.surfaceText
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        DIcon {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "add"
+                            size: Theme.iconSize
+                            color: Theme.primary
+                        }
+                    }
                 }
             }
-
         }
     }
 
@@ -126,8 +251,21 @@ Item {
             id: dialHover
         }
 
-        // Circular Dial Face
+        // Circular Dial Face (or M3 Cookie Shape when enabled)
+        DMaterialShape {
+            visible: SettingsData.worldClockM3Shape
+            anchors.centerIn: parent
+            width: dialRoot.outerRadius * 2
+            height: dialRoot.outerRadius * 2
+            shape: "cookie12"
+            respectThemeShape: false
+            color: dialScrubArea.pressed
+                ? Theme.surfaceContainerHighest
+                : (dialScrubArea.containsMouse ? Theme.surfaceContainer : Theme.surfaceContainerLow)
+        }
+
         Rectangle {
+            visible: !SettingsData.worldClockM3Shape
             anchors.centerIn: parent
             width: dialRoot.outerRadius * 2
             height: dialRoot.outerRadius * 2
@@ -222,7 +360,7 @@ Item {
 
                 Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    y: dialRoot.cy - dialRoot.outerRadius + 8
+                    y: dialRoot.cy - (SettingsData.worldClockM3Shape ? dialRoot.outerRadius * 0.87 : dialRoot.outerRadius) + 8
                     width: parent.isHourTick ? 2.2 : 1.2
                     height: parent.isHourTick ? 11 : 5
                     radius: width / 2
@@ -242,7 +380,7 @@ Item {
                 required property int index
                 readonly property int hourNum: index === 0 ? 12 : index
                 readonly property real angleRad: (index * 30 - 90) * Math.PI / 180
-                readonly property real numRadius: dialRoot.outerRadius - 32
+                readonly property real numRadius: (SettingsData.worldClockM3Shape ? dialRoot.outerRadius * 0.87 : dialRoot.outerRadius) - 28
 
                 text: String(hourNum)
                 font.pixelSize: Theme.fontSizeMedium

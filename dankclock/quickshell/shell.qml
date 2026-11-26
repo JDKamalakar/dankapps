@@ -150,4 +150,19 @@ ShellRoot {
         parentWindow: windowLoader.item
         id: appSettingsModal
     }
+
+    NewAlarmModal {
+        parentWindow: windowLoader.item
+        id: newAlarmModal
+    }
+
+    NewTimerModal {
+        parentWindow: windowLoader.item
+        id: newTimerModal
+    }
+
+    NewReminderModal {
+        parentWindow: windowLoader.item
+        id: newReminderModal
+    }
 }

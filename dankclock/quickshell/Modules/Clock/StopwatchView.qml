@@ -1,37 +1,46 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Layouts
 import qs.Common
 import qs.Services
 import qs.DCommon.Common
 import qs.DCommon.Widgets
 
-DFlickable {
+Item {
     id: root
 
     anchors.fill: parent
-    clip: true
-    contentWidth: width
-    contentHeight: pageColumn.height + ClockMetrics.pagePaddingV
+
+    readonly property string densityMode: SettingsData.density || "comfortable"
+    readonly property bool isSpacious: densityMode === "spacious"
+    readonly property bool isCompact: densityMode === "compact" || densityMode === "dense"
+    readonly property real panelPad: isSpacious ? Theme.spacingXL : (isCompact ? Theme.spacingM : Theme.spacingL)
+    readonly property real panelGap: isSpacious ? Theme.spacingXL : (isCompact ? Theme.spacingM : Theme.spacingL)
 
     readonly property real minuteProgress: (ClockService.stopwatchElapsedMs % 60000) / 60000
     readonly property string fullFormatted: ClockService.formatStopwatch(ClockService.stopwatchElapsedMs)
     readonly property int dotIdx: fullFormatted.indexOf(".")
     readonly property string mainDigits: dotIdx >= 0 ? fullFormatted.substring(0, dotIdx) : fullFormatted
     readonly property string centiDigits: dotIdx >= 0 ? fullFormatted.substring(dotIdx) : ".00"
+    readonly property bool hasElapsed: ClockService.stopwatchElapsedMs > 0
 
-    Column {
-        id: pageColumn
-        topPadding: Theme.spacingL
-        width: Math.min(ClockMetrics.contentMaxWidth, parent.width - Theme.spacingL * 2)
-        anchors.horizontalCenter: parent.horizontalCenter
-        spacing: ClockMetrics.cardGap
+    RowLayout {
+        anchors.fill: parent
+        anchors.margins: root.panelPad
+        spacing: root.panelGap
 
-        // Hero Stopwatch Card
+        // LEFT PANEL (~70% width, full height): Full Stopwatch Card
         Rectangle {
             id: heroStopwatchCard
-            width: parent.width
-            height: swHeroCol.implicitHeight + Theme.spacingXL * 2
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            readonly property real cardPad: root.isSpacious ? Theme.spacingXL : (root.isCompact ? Theme.spacingM : Theme.spacingL)
+            readonly property real dialWidthAvail: Math.max(110, width - cardPad * 2 - Theme.spacingM * 2)
+            readonly property real dialHeightAvail: Math.max(110, height - cardPad * 2 - 34 - 42 - (root.isCompact ? Theme.spacingS : Theme.spacingM) * 2)
+            readonly property real computedDialSize: Math.min(540, Math.min(dialWidthAvail, dialHeightAvail))
+
             radius: Theme.cornerRadiusXL
             color: swHeroHover.hovered ? Theme.surfaceContainerHighest : ClockMetrics.rowColor
             border.width: Theme.layerOutlineWidth
@@ -48,29 +57,54 @@ DFlickable {
                 ColorAnimation { duration: ClockMetrics.fadeDuration }
             }
 
-            HoverHandler {
-                id: swHeroHover
+            HoverHandler { id: swHeroHover }
+
+            // Click anywhere on the card/dial to Start or Pause
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: ClockService.toggleStopwatch()
             }
 
-            Column {
-                id: swHeroCol
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.margins: Theme.spacingXL
-                spacing: Theme.spacingL
+            Item {
+                anchors.fill: parent
+                anchors.margins: heroStopwatchCard.cardPad
 
-                // 240x240 Ring Gauge with Organic Blob
+                // Top Header: Status Badge + Title
+                Row {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: 30
+                    spacing: Theme.spacingS
+
+                    DBadge {
+                        text: ClockService.stopwatchRunning ? "RUNNING" : (root.hasElapsed ? "PAUSED" : "READY")
+                        color: ClockService.stopwatchRunning ? Theme.primary : Theme.secondaryContainer
+                        textColor: ClockService.stopwatchRunning ? Theme.onPrimary : Theme.onSecondaryContainer
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    StyledText {
+                        text: "Stopwatch"
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.weight: Theme.fontWeightBold
+                        color: Theme.surfaceText
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                // Center Ring Gauge
                 ClockRingDial {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    dialSize: 240
-                    blobSize: 204
+                    anchors.centerIn: parent
+                    dialSize: heroStopwatchCard.computedDialSize
+                    blobSize: Math.round(heroStopwatchCard.computedDialSize * 0.84)
                     progress: root.minuteProgress
                     ringColor: Theme.primary
                     active: ClockService.stopwatchRunning
                     animated: false
                     clickable: true
-                    tooltipText: ClockService.stopwatchRunning ? "Click to stop" : (ClockService.stopwatchElapsedMs > 0 ? "Click to resume" : "Click to start")
+                    tooltipText: ClockService.stopwatchRunning ? "Click to pause" : (root.hasElapsed ? "Click to resume" : "Click to start")
                     onClicked: ClockService.toggleStopwatch()
 
                     Row {
@@ -103,116 +137,266 @@ DFlickable {
                     }
                 }
 
-                // Controls Row
+                // Bottom Controls: Custom Group Button (Start/Pause + Lap/Reset)
                 Row {
+                    id: swControlsGroup
                     anchors.horizontalCenter: parent.horizontalCenter
-                    spacing: Theme.spacingM
+                    anchors.bottom: parent.bottom
+                    height: 36
+                    spacing: 2
+                    z: 2
 
-                    DButton {
-                        text: ClockService.stopwatchRunning ? "Lap" : "Reset"
-                        iconName: ClockService.stopwatchRunning ? "flag" : "restart_alt"
-                        buttonHeight: Theme.buttonHeightM
-                        backgroundColor: ClockService.stopwatchRunning ? Theme.secondaryContainer : Theme.errorContainer
-                        textColor: ClockService.stopwatchRunning ? Theme.onSecondaryContainer : Theme.onErrorContainer
-                        enabled: ClockService.stopwatchRunning || ClockService.stopwatchElapsedMs > 0
-                        onClicked: {
-                            if (ClockService.stopwatchRunning)
-                                ClockService.lapStopwatch();
-                            else
-                                ClockService.resetStopwatch();
+                    readonly property real outerR: Theme.groupedListOuterRadius ?? 16
+                    readonly property real innerR: Theme.groupedListInnerRadius ?? 4
+                    readonly property bool showSecondary: ClockService.stopwatchRunning || root.hasElapsed
+
+                    // First: Start / Pause
+                    Rectangle {
+                        width: spRow.implicitWidth + Theme.spacingM * 2
+                        height: parent.height
+                        topLeftRadius: parent.outerR
+                        bottomLeftRadius: parent.outerR
+                        topRightRadius: (ClockService.stopwatchRunning || spMouse.pressed || spMouse.containsMouse || !swControlsGroup.showSecondary) ? parent.outerR : parent.innerR
+                        bottomRightRadius: (ClockService.stopwatchRunning || spMouse.pressed || spMouse.containsMouse || !swControlsGroup.showSecondary) ? parent.outerR : parent.innerR
+                        color: (ClockService.stopwatchRunning || spMouse.containsMouse) ? Theme.withAlpha(Theme.primary, 0.22) : Theme.surfaceContainerHigh
+                        border.width: 1
+                        border.color: (ClockService.stopwatchRunning || spMouse.containsMouse) ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+                        scale: spMouse.pressed ? 0.95 : (spMouse.containsMouse ? 1.03 : 1.0)
+                        clip: true
+
+                        Behavior on topRightRadius { enabled: Theme.animationsEnabled; NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                        Behavior on bottomRightRadius { enabled: Theme.animationsEnabled; NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                        Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+
+                        DRipple { id: spRipple; anchors.fill: parent; rippleColor: Theme.primary }
+
+                        Row {
+                            id: spRow
+                            anchors.centerIn: parent
+                            spacing: 5
+
+                            DIcon {
+                                name: ClockService.stopwatchRunning ? "pause" : "play_arrow"
+                                size: 16
+                                color: (ClockService.stopwatchRunning || spMouse.containsMouse) ? Theme.primary : Theme.surfaceText
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            StyledText {
+                                text: ClockService.stopwatchRunning ? "Pause" : (root.hasElapsed ? "Resume" : "Start")
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Medium
+                                color: (ClockService.stopwatchRunning || spMouse.containsMouse) ? Theme.primary : Theme.surfaceText
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        MouseArea {
+                            id: spMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onPressed: mouse => spRipple.trigger(mouse.x, mouse.y)
+                            onClicked: ClockService.toggleStopwatch()
+                        }
+                    }
+
+                    // Second: Lap (when running) / Reset (when paused with elapsed)
+                    Rectangle {
+                        width: swControlsGroup.showSecondary ? (secRow.implicitWidth + Theme.spacingM * 2) : 0
+                        height: parent.height
+                        opacity: swControlsGroup.showSecondary ? 1 : 0
+                        enabled: swControlsGroup.showSecondary
+                        topLeftRadius: (secMouse.pressed || secMouse.containsMouse) ? parent.outerR : parent.innerR
+                        bottomLeftRadius: (secMouse.pressed || secMouse.containsMouse) ? parent.outerR : parent.innerR
+                        topRightRadius: parent.outerR
+                        bottomRightRadius: parent.outerR
+                        color: secMouse.containsMouse
+                            ? Theme.withAlpha(ClockService.stopwatchRunning ? Theme.primary : Theme.error, 0.2)
+                            : Theme.surfaceContainerHigh
+                        border.width: swControlsGroup.showSecondary ? 1 : 0
+                        border.color: secMouse.containsMouse
+                            ? (ClockService.stopwatchRunning ? Theme.primary : Theme.error)
+                            : (Theme.outlineMedium ?? Theme.outlineVariant)
+                        scale: secMouse.pressed ? 0.95 : (secMouse.containsMouse ? 1.03 : 1.0)
+                        clip: true
+
+                        Behavior on topLeftRadius { enabled: Theme.animationsEnabled; NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                        Behavior on bottomLeftRadius { enabled: Theme.animationsEnabled; NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                        Behavior on width { enabled: Theme.animationsEnabled; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                        Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 150 } }
+                        Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+
+                        DRipple { id: secRipple; anchors.fill: parent; rippleColor: ClockService.stopwatchRunning ? Theme.primary : Theme.error }
+
+                        Row {
+                            id: secRow
+                            anchors.centerIn: parent
+                            spacing: 5
+
+                            DIcon {
+                                name: ClockService.stopwatchRunning ? "flag" : "restart_alt"
+                                size: 16
+                                color: secMouse.containsMouse
+                                    ? (ClockService.stopwatchRunning ? Theme.primary : Theme.error)
+                                    : Theme.surfaceText
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            StyledText {
+                                text: ClockService.stopwatchRunning ? "Lap" : "Reset"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Medium
+                                color: secMouse.containsMouse
+                                    ? (ClockService.stopwatchRunning ? Theme.primary : Theme.error)
+                                    : Theme.surfaceText
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        MouseArea {
+                            id: secMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onPressed: mouse => secRipple.trigger(mouse.x, mouse.y)
+                            onClicked: {
+                                if (ClockService.stopwatchRunning)
+                                    ClockService.lapStopwatch();
+                                else
+                                    ClockService.resetStopwatch();
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Laps Section
-        Column {
-            width: parent.width
-            spacing: 0
+        // RIGHT PANEL (30% of horizontal width): Lap Splits
+        DFlickable {
+            id: rightFlickable
+            Layout.preferredWidth: Math.max(240, Math.round(root.width * 0.30))
+            Layout.minimumWidth: 220
+            Layout.fillHeight: true
+            clip: true
+            contentWidth: width
+            contentHeight: rightCol.implicitHeight + Theme.spacingXL
 
-            ClockSectionLabel {
-                width: parent.width
-                text: ClockService.stopwatchLaps.length > 0 ? `Lap Splits (${ClockService.stopwatchLaps.length})` : "Lap Splits"
-            }
+            Column {
+                id: rightCol
+                x: 4
+                width: Math.max(0, rightFlickable.width - 8)
+                spacing: 0
 
-            ClockEmptyState {
-                visible: ClockService.stopwatchLaps.length === 0
-                cardHeight: 150
-                iconName: "flag"
-                iconSize: Theme.iconSizeLarge
-                title: "No Laps Recorded"
-                titlePixelSize: Theme.fontSizeMedium
-                subtitle: "Press Lap while the stopwatch is running to record split times."
-            }
+                ClockSectionLabel {
+                    width: parent.width
+                    iconName: "flag"
+                    text: ClockService.stopwatchLaps.length > 0 ? `Lap Splits (${ClockService.stopwatchLaps.length})` : "Lap Splits"
+                }
 
-            ClockGroup {
-                visible: ClockService.stopwatchLaps.length > 0
-                width: parent.width
+                ClockEmptyState {
+                    visible: ClockService.stopwatchLaps.length === 0
+                    cardHeight: 150
+                    iconName: "flag"
+                    iconSize: Theme.iconSizeLarge
+                    title: "No Laps Recorded"
+                    titlePixelSize: Theme.fontSizeMedium
+                    subtitle: "Press Lap while running to record split times."
+                }
 
-                Repeater {
-                    model: ClockService.stopwatchLaps
+                Column {
+                    visible: ClockService.stopwatchLaps.length > 0
+                    width: parent.width
+                    spacing: 2
 
-                    ClockRow {
-                        id: lapRow
-                        required property var modelData
-                        required property int index
+                    Repeater {
+                        model: ClockService.stopwatchLaps
 
-                        readonly property bool isFastest: modelData.lapNumber === ClockService.fastestLapNumber
-                        readonly property bool isSlowest: modelData.lapNumber === ClockService.slowestLapNumber
+                        Rectangle {
+                            id: lapCard
+                            required property var modelData
+                            required property int index
 
-                        width: parent.width
-                        iconName: isFastest ? "emoji_events" : (isSlowest ? "trending_down" : "flag")
-                        accent: isFastest ? "green" : (isSlowest ? "red" : "purple")
-                        title: `Lap #${String(modelData.lapNumber).padStart(2, "0")}`
-                        subtitle: isFastest ? "Fastest Split" : (isSlowest ? "Slowest Split" : "")
-                        subtitleColor: isFastest ? Theme.success : (isSlowest ? Theme.error : Theme.surfaceVariantText)
-                        isFirstInGroup: index === 0
-                        isLastInGroup: index === ClockService.stopwatchLaps.length - 1
+                            readonly property bool isFastest: modelData.lapNumber === ClockService.fastestLapNumber
+                            readonly property bool isSlowest: modelData.lapNumber === ClockService.slowestLapNumber
+                            readonly property bool isFirst: index === 0
+                            readonly property bool isLast: index === ClockService.stopwatchLaps.length - 1
+                            readonly property real outerR: Theme.groupedListOuterRadius ?? 16
+                            readonly property real innerR: Theme.groupedListInnerRadius ?? 4
 
-                        Row {
-                            spacing: 28
-                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width
+                            height: root.isSpacious ? 68 : (root.isCompact ? 54 : 60)
+                            topLeftRadius: lapHover.hovered ? Theme.cornerRadiusXL : (isFirst ? outerR : innerR)
+                            topRightRadius: lapHover.hovered ? Theme.cornerRadiusXL : (isFirst ? outerR : innerR)
+                            bottomLeftRadius: lapHover.hovered ? Theme.cornerRadiusXL : (isLast ? outerR : innerR)
+                            bottomRightRadius: lapHover.hovered ? Theme.cornerRadiusXL : (isLast ? outerR : innerR)
+                            color: lapHover.hovered ? Theme.foregroundColor(Theme.surfaceContainerHigh, true) : Theme.foregroundColor(Theme.surfaceContainerLow, true)
+                            border.width: 1
+                            border.color: lapHover.hovered
+                                ? (isFastest ? Theme.success : (isSlowest ? Theme.error : Theme.primary))
+                                : (Theme.outlineMedium ?? Theme.outlineVariant)
 
-                            Column {
-                                spacing: Theme.spacingXS
-                                anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: ClockMetrics.fadeDuration } }
 
-                                StyledText {
-                                    text: "LAP TIME"
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    font.weight: Font.Bold
-                                    color: Theme.surfaceVariantText
-                                    anchors.right: parent.right
+                            HoverHandler { id: lapHover }
+
+                            Item {
+                                anchors.fill: parent
+                                anchors.leftMargin: Theme.spacingM
+                                anchors.rightMargin: Theme.spacingM
+
+                                Row {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: Theme.spacingS
+
+                                    DIcon {
+                                        name: lapCard.isFastest ? "emoji_events" : (lapCard.isSlowest ? "trending_down" : "flag")
+                                        size: Theme.iconSizeSmall
+                                        color: lapCard.isFastest ? Theme.success : (lapCard.isSlowest ? Theme.error : Theme.primary)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+
+                                    Column {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: 1
+
+                                        StyledText {
+                                            text: `Lap #${String(lapCard.modelData.lapNumber).padStart(2, "0")}`
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            font.weight: Font.DemiBold
+                                            color: Theme.surfaceText
+                                        }
+
+                                        StyledText {
+                                            visible: lapCard.isFastest || lapCard.isSlowest
+                                            text: lapCard.isFastest ? "Fastest" : "Slowest"
+                                            font.pixelSize: Theme.fontSizeSmall - 2
+                                            font.weight: Font.Medium
+                                            color: lapCard.isFastest ? Theme.success : Theme.error
+                                        }
+                                    }
                                 }
 
-                                NumericText {
-                                    text: "+" + ClockService.formatStopwatch(lapRow.modelData.lapMs)
-                                    font.pixelSize: Theme.fontSizeMedium
-                                    font.weight: Font.Bold
-                                    color: lapRow.isFastest ? Theme.success : (lapRow.isSlowest ? Theme.error : Theme.surfaceText)
+                                Column {
                                     anchors.right: parent.right
-                                }
-                            }
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 1
 
-                            Column {
-                                spacing: Theme.spacingXS
-                                anchors.verticalCenter: parent.verticalCenter
+                                    NumericText {
+                                        anchors.right: parent.right
+                                        text: "+" + ClockService.formatStopwatch(lapCard.modelData.lapMs)
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.weight: Font.Bold
+                                        color: lapCard.isFastest ? Theme.success : (lapCard.isSlowest ? Theme.error : Theme.surfaceText)
+                                    }
 
-                                StyledText {
-                                    text: "TOTAL"
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    font.weight: Font.Bold
-                                    color: Theme.surfaceVariantText
-                                    anchors.right: parent.right
-                                }
-
-                                NumericText {
-                                    text: ClockService.formatStopwatch(lapRow.modelData.totalMs)
-                                    font.pixelSize: Theme.fontSizeMedium
-                                    font.weight: Font.Bold
-                                    color: Theme.surfaceText
-                                    anchors.right: parent.right
+                                    NumericText {
+                                        anchors.right: parent.right
+                                        text: ClockService.formatStopwatch(lapCard.modelData.totalMs)
+                                        font.pixelSize: Theme.fontSizeSmall - 1
+                                        color: Theme.surfaceVariantText
+                                    }
                                 }
                             }
                         }

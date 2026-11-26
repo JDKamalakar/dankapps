@@ -127,7 +127,13 @@ Singleton {
 
     // Clock preferences
     property alias use24HourClock: adapter.use24HourClock
+    property alias vacationDefaultDays: adapter.vacationDefaultDays
+    property alias vacationFlipClock: adapter.vacationFlipClock
+    property alias defaultSnoozeMin: adapter.defaultSnoozeMin
+    property alias alwaysDeleteOneTimeAlarms: adapter.alwaysDeleteOneTimeAlarms
+    property alias customSoundsFolder: adapter.customSoundsFolder
     property alias showSeconds: adapter.showSeconds
+    property alias worldClockM3Shape: adapter.worldClockM3Shape
     property alias closeBehavior: adapter.closeBehavior
     property alias showTrayIcon: adapter.showTrayIcon
     property alias enableNotifications: adapter.enableNotifications
@@ -202,7 +208,13 @@ Singleton {
             property bool sidebarFloating: false
             property int sidebarAutoHideMs: 1500
             property bool use24HourClock: true
+            property int vacationDefaultDays: 3
+            property bool vacationFlipClock: true
+            property int defaultSnoozeMin: 10
+            property bool alwaysDeleteOneTimeAlarms: true
+            property string customSoundsFolder: ""
             property bool showSeconds: true
+            property bool worldClockM3Shape: false
             property string closeBehavior: "minimize"
             property bool showTrayIcon: true
             property bool enableNotifications: true

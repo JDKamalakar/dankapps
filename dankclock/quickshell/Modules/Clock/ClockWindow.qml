@@ -24,31 +24,35 @@ FloatingWindow {
     }
 
     readonly property var navDestinations: [
-        { icon: "alarm", text: "Alarms" },
-        { icon: "public", text: "Clock" },
+        { tabIndex: 0, icon: "alarm", text: "Alarms" },
+        { tabIndex: 1, icon: "public", text: "World Clock" },
         {
+            tabIndex: 2,
             icon: "notifications",
             text: "Reminders",
             badgeCount: ClockService.activeReminderCount
         },
         {
+            tabIndex: 3,
             icon: "hourglass_empty",
             text: "Timers",
             badgeCount: ClockService.runningTimerCount
         },
         {
+            tabIndex: 4,
             icon: "psychology",
             text: "Pomodoro",
             badgeCount: ClockService.pomodoroRunning ? 1 : 0
         },
         {
+            tabIndex: 5,
             icon: "timer",
             text: "Stopwatch",
             badgeCount: ClockService.stopwatchRunning ? 1 : 0
         }
     ]
 
-    title: `${ClockService.currentTabIndex === 6 ? "Settings" : (navDestinations[ClockService.currentTabIndex]?.text ?? "Clock")} — DUX Clock`
+    title: `${ClockService.currentTabIndex === 6 ? "Settings" : ((navDestinations.find(d => d.tabIndex === ClockService.currentTabIndex)?.text) ?? "Clock")} — DUX Clock`
     minimumSize: Qt.size(ClockMetrics.windowMinWidth, ClockMetrics.windowMinHeight)
     implicitWidth: ClockMetrics.windowWidth
     implicitHeight: ClockMetrics.windowHeight
@@ -82,7 +86,7 @@ FloatingWindow {
         }
 
         Keys.onPressed: event => {
-            if (ClockService.citySheetOpen || ClockService.timePickerOpen || ClockService.labelDialogOpen || ClockService.settingsOpen)
+            if (ClockService.citySheetOpen || ClockService.timePickerOpen || ClockService.editingLabelAlarmIndex >= 0 || ClockService.settingsOpen || ClockService.newAlarmModalOpen || ClockService.newTimerModalOpen)
                 return;
 
             if (event.modifiers & Qt.ControlModifier) {
@@ -259,9 +263,11 @@ FloatingWindow {
                     Layout.preferredHeight: implicitHeight
                     Layout.alignment: Qt.AlignTop
                     model: window.navDestinations
-                    currentIndex: ClockService.currentTabIndex < 6 ? ClockService.currentTabIndex : -1
+                    currentIndex: ClockService.currentTabIndex < 6 ? window.navDestinations.findIndex(d => d.tabIndex === ClockService.currentTabIndex) : -1
                     onActivated: index => {
-                        ClockService.currentTabIndex = index;
+                        const item = window.navDestinations[index];
+                        if (item)
+                            ClockService.currentTabIndex = item.tabIndex;
                         rootContent.forceActiveFocus();
                     }
                 }
@@ -290,7 +296,7 @@ FloatingWindow {
             anchors.left: SettingsData.sidebarFloating ? parent.left : sidebar.right
             anchors.leftMargin: Theme.spacingXS
             anchors.top: header.bottom
-            anchors.right: parent.right
+            anchors.right: vacationSheet.left
             anchors.rightMargin: Theme.spacingM
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Theme.spacingM
@@ -300,39 +306,248 @@ FloatingWindow {
             border.color: Theme.outlineMedium
             clip: true
 
-            AlarmView {
-                anchors.fill: parent
-                visible: ClockService.currentTabIndex === 0
-                enabled: ClockService.stateReady
+            // Modernized Vacation Mode Header Banner (shown across all modes when active)
+            Item {
+                id: globalVacationBanner
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: ClockService.isVacationActive ? 96 : 0
+                opacity: ClockService.isVacationActive ? 1.0 : 0.0
+                clip: true
+                z: 10
+
+                Behavior on height { enabled: Theme.animationsEnabled; NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: Theme.spacingS
+                    radius: Theme.cornerRadiusL
+                    color: Theme.withAlpha(Theme.primary, 0.14)
+                    border.color: Theme.withAlpha(Theme.primary, 0.4)
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spacingM
+                        anchors.rightMargin: Theme.spacingM
+                        spacing: Theme.spacingM
+
+                        Item {
+                            Layout.preferredWidth: 76
+                            Layout.preferredHeight: 68
+
+                            AnimatedImage {
+                                anchors.fill: parent
+                                visible: ClockService.vacationThemes[ClockService.vacationThemeIndex].isGif
+                                source: (ClockService.isVacationActive && visible) ? Qt.resolvedUrl("../../assets/vacation/" + ClockService.vacationThemes[ClockService.vacationThemeIndex].file) : ""
+                                fillMode: Image.PreserveAspectFit
+                                playing: ClockService.isVacationActive
+                            }
+
+                            Image {
+                                anchors.fill: parent
+                                visible: !ClockService.vacationThemes[ClockService.vacationThemeIndex].isGif
+                                source: (ClockService.isVacationActive && visible) ? Qt.resolvedUrl("../../assets/vacation/" + ClockService.vacationThemes[ClockService.vacationThemeIndex].file) : ""
+                                fillMode: Image.PreserveAspectFit
+                                asynchronous: true
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 1
+
+                            StyledText {
+                                text: {
+                                    const endStr = (ClockService.vacation && ClockService.vacation.endDate) ? ClockService.vacation.endDate : "";
+                                    const formatted = endStr ? Qt.formatDate(new Date(endStr + "T12:00:00"), "dd / MMM / yy") : "";
+                                    return formatted ? ("Vacation Mode • Till " + formatted) : "Vacation Mode";
+                                }
+                                font.pixelSize: Theme.fontSizeMedium
+                                font.weight: Font.DemiBold
+                                color: Theme.primary
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+
+                            StyledText {
+                                text: "All alarms are silenced during your vacation"
+                                font.pixelSize: Theme.fontSizeSmall - 1
+                                color: Theme.surfaceVariantText
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        Row {
+                            spacing: 2
+                            readonly property real outerR: Theme.groupedListOuterRadius ?? 16
+                            readonly property real innerR: Theme.groupedListInnerRadius ?? 4
+
+                            Rectangle {
+                                width: cfgRow.implicitWidth + Theme.spacingM * 2
+                                height: 34
+                                topLeftRadius: parent.outerR
+                                bottomLeftRadius: parent.outerR
+                                topRightRadius: cfgMouse.containsMouse ? parent.outerR : parent.innerR
+                                bottomRightRadius: cfgMouse.containsMouse ? parent.outerR : parent.innerR
+                                color: (ClockService.vacationSheetOpen || cfgMouse.containsMouse) ? Theme.withAlpha(Theme.primary, 0.2) : Theme.surfaceContainerHigh
+                                border.width: 1
+                                border.color: (ClockService.vacationSheetOpen || cfgMouse.containsMouse) ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+                                scale: cfgMouse.pressed ? 0.95 : (cfgMouse.containsMouse ? 1.04 : 1.0)
+                                clip: true
+
+                                Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+
+                                DRipple { id: cfgRipple; anchors.fill: parent; rippleColor: Theme.primary }
+
+                                Row {
+                                    id: cfgRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+
+                                    DIcon {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        name: ClockService.vacationSheetOpen ? "visibility_off" : "tune"
+                                        size: 16
+                                        color: (ClockService.vacationSheetOpen || cfgMouse.containsMouse) ? Theme.primary : Theme.surfaceText
+                                    }
+
+                                    StyledText {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: ClockService.vacationSheetOpen ? "Hide" : "Configure"
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.weight: Font.Medium
+                                        color: (ClockService.vacationSheetOpen || cfgMouse.containsMouse) ? Theme.primary : Theme.surfaceText
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: cfgMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onPressed: mouse => cfgRipple.trigger(mouse.x, mouse.y)
+                                    onClicked: ClockService.vacationSheetOpen = !ClockService.vacationSheetOpen
+                                }
+                            }
+
+                            Rectangle {
+                                width: offRow.implicitWidth + Theme.spacingM * 2
+                                height: 34
+                                topLeftRadius: offMouse.containsMouse ? parent.outerR : parent.innerR
+                                bottomLeftRadius: offMouse.containsMouse ? parent.outerR : parent.innerR
+                                topRightRadius: parent.outerR
+                                bottomRightRadius: parent.outerR
+                                color: offMouse.containsMouse ? Theme.withAlpha(Theme.error, 0.22) : Theme.withAlpha(Theme.error, 0.12)
+                                border.width: 1
+                                border.color: offMouse.containsMouse ? Theme.error : Theme.withAlpha(Theme.error, 0.45)
+                                scale: offMouse.pressed ? 0.95 : (offMouse.containsMouse ? 1.04 : 1.0)
+                                clip: true
+
+                                Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+
+                                DRipple { id: offRipple; anchors.fill: parent; rippleColor: Theme.error }
+
+                                Row {
+                                    id: offRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+
+                                    DIcon {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        name: "power_settings_new"
+                                        size: 16
+                                        color: Theme.error
+                                    }
+
+                                    StyledText {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "Turn Off"
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.weight: Font.Medium
+                                        color: Theme.error
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: offMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onPressed: mouse => offRipple.trigger(mouse.x, mouse.y)
+                                    onClicked: ClockService.disableVacationMode()
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
-            WorldClockView {
-                anchors.fill: parent
-                visible: ClockService.currentTabIndex === 1
-                enabled: ClockService.stateReady
-            }
+            Item {
+                id: tabContentStack
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: globalVacationBanner.bottom
+                anchors.bottom: parent.bottom
 
-            ReminderView {
-                anchors.fill: parent
-                visible: ClockService.currentTabIndex === 2
-                enabled: ClockService.stateReady
-            }
+                Connections {
+                    target: ClockService
+                    function onCurrentTabIndexChanged() {
+                        tabContentStack.opacity = 0.0;
+                        tabContentStack.y = 14;
+                        tabAnimTimer.restart();
+                    }
+                }
 
-            TimerView {
-                anchors.fill: parent
-                visible: ClockService.currentTabIndex === 3
-                enabled: ClockService.stateReady
-            }
+                Timer {
+                    id: tabAnimTimer
+                    interval: 16
+                    onTriggered: {
+                        tabContentStack.opacity = 1.0;
+                        tabContentStack.y = 0;
+                    }
+                }
 
-            PomodoroView {
-                anchors.fill: parent
-                visible: ClockService.currentTabIndex === 4
-                enabled: ClockService.stateReady
-            }
+                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                Behavior on y { enabled: Theme.animationsEnabled; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
-            StopwatchView {
-                anchors.fill: parent
-                visible: ClockService.currentTabIndex === 5
+                AlarmView {
+                    anchors.fill: parent
+                    visible: ClockService.currentTabIndex === 0
+                    enabled: ClockService.stateReady
+                }
+
+                WorldClockView {
+                    anchors.fill: parent
+                    visible: ClockService.currentTabIndex === 1
+                    enabled: ClockService.stateReady
+                }
+
+                ReminderView {
+                    anchors.fill: parent
+                    visible: ClockService.currentTabIndex === 2
+                    enabled: ClockService.stateReady
+                }
+
+                TimerView {
+                    anchors.fill: parent
+                    visible: ClockService.currentTabIndex === 3
+                    enabled: ClockService.stateReady
+                }
+
+                PomodoroView {
+                    anchors.fill: parent
+                    visible: ClockService.currentTabIndex === 4
+                    enabled: ClockService.stateReady
+                }
+
+                StopwatchView {
+                    anchors.fill: parent
+                    visible: ClockService.currentTabIndex === 5
+                }
             }
 
             // Settings handled by top-level FloatingWindow SettingsModal
@@ -440,70 +655,28 @@ FloatingWindow {
             }
         }
 
-        // Alarm Label Edit Bottom Sheet
-        DBottomSheet {
-            id: labelSheet
-            opened: ClockService.labelDialogOpen
-            title: "Alarm Label"
-            onDismissRequested: {
-                ClockService.labelDialogOpen = false;
-                rootContent.forceActiveFocus();
-            }
-
-            onOpenedChanged: {
-                if (opened && ClockService.editingLabelAlarmIndex >= 0 && ClockService.editingLabelAlarmIndex < ClockService.alarms.length) {
-                    alarmLabelField.text = ClockService.alarms[ClockService.editingLabelAlarmIndex].label || "";
-                    alarmLabelField.forceActiveFocus();
+        // Vacation Mode Configuration Sheet
+        // Outside-click dismisses the Vacation side pane
+        MouseArea {
+            anchors.fill: parent
+            z: 40
+            visible: ClockService.vacationSheetOpen
+            onPressed: mouse => {
+                if (mouse.x < vacationSheet.x && mouse.y > (header.height + globalVacationBanner.height + Theme.spacingM)) {
+                    ClockService.vacationSheetOpen = false;
                 }
-            }
-
-            DTextField {
-                id: alarmLabelField
-                width: parent.width
-                placeholderText: "Enter alarm label..."
-                Keys.onReturnPressed: saveLabelBtn.clicked()
-                Keys.onEnterPressed: saveLabelBtn.clicked()
-            }
-
-            Item {
-                width: parent.width
-                height: 44
-
-                Row {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.spacingS
-
-                    DButton {
-                        text: "Cancel"
-                        buttonHeight: Theme.buttonHeightXS
-                        backgroundColor: Theme.secondaryContainer
-                        textColor: Theme.onSecondaryContainer
-                        onClicked: ClockService.labelDialogOpen = false
-                    }
-
-                    DButton {
-                        id: saveLabelBtn
-                        text: "Save"
-                        buttonHeight: Theme.buttonHeightXS
-                        onClicked: {
-                            ClockService.updateAlarmLabel(ClockService.editingLabelAlarmIndex, alarmLabelField.text);
-                            ClockService.labelDialogOpen = false;
-                            rootContent.forceActiveFocus();
-                        }
-                    }
-                }
+                mouse.accepted = false;
             }
         }
 
-        // Vacation Mode Configuration Sheet
         ClockVacationSheet {
             id: vacationSheet
-        }
-
-        // Reminder Creation / Editing Sheet
-        ClockReminderSheet {
-            id: reminderSheet
+            anchors.top: header.bottom
+            anchors.topMargin: Theme.spacingM
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.spacingM
+            anchors.right: parent.right
+            anchors.rightMargin: width > 0 ? Theme.spacingM : 0
         }
 
         // Dedicated TimePicker Modal for Reminder Time

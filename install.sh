@@ -13,7 +13,6 @@ ROOT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 NON_INTERACTIVE=false
 INSTALL_ALL=false
 FLAG_APPS=""
-MAKE_TARGET="install-user"
 
 show_help() {
     echo "Usage: install.sh [OPTIONS] [APPS...]"
@@ -21,8 +20,6 @@ show_help() {
     echo "Options:"
     echo "  -a, --all            Install all apps without prompting"
     echo "  --apps <list>        Comma-separated list of apps (e.g. clock,calc,gamehub)"
-    echo "  -u, --user           Install to ~/.local (default)"
-    echo "  -s, --system         Install system-wide to /usr/local (requires sudo)"
     echo "  -y, --yes            Skip interactive prompts"
     echo "  -h, --help           Show this help message"
     echo ""
@@ -44,14 +41,6 @@ while [[ $# -gt 0 ]]; do
         --apps=*|--app=*)
             FLAG_APPS="${1#*=}"
             NON_INTERACTIVE=true
-            shift
-            ;;
-        -u|--user)
-            MAKE_TARGET="install-user"
-            shift
-            ;;
-        -s|--system)
-            MAKE_TARGET="install"
             shift
             ;;
         -y|--yes)
@@ -247,19 +236,6 @@ if [ "${#CHOSEN_INDICES[@]}" -eq 0 ]; then
     exit 1
 fi
 
-if [ "$NON_INTERACTIVE" = false ]; then
-    echo ""
-    echo -e "${BOLD}Choose installation destination:${RESET}"
-    echo -e "  ${BOLD}${GREEN}[1]${RESET} User-level (${HOME}/.local) ${CYAN}[Recommended - No root required]${RESET}"
-    echo -e "  ${BOLD}${GREEN}[2]${RESET} System-wide (/usr/local) ${YELLOW}[Requires sudo]${RESET}"
-    read -r -p "Enter choice [1/2, default: 1]: " DEST_CHOICE
-
-    MAKE_TARGET="install-user"
-    if [ "$DEST_CHOICE" == "2" ]; then
-        MAKE_TARGET="install"
-    fi
-fi
-
 echo ""
 echo -e "${BOLD}${CYAN}Starting installation...${RESET}"
 
@@ -278,22 +254,12 @@ for IDX in "${CHOSEN_INDICES[@]}"; do
         continue
     fi
 
-    if [ "$MAKE_TARGET" == "install" ]; then
-        if sudo make -C "$ROOT_DIR/$DIR" install; then
-            echo -e "${GREEN}✓ Successfully installed $NAME${RESET}"
-            SUCCESS_APPS+=("$NAME")
-        else
-            echo -e "${RED}✗ Failed to install $NAME${RESET}"
-            FAILED_APPS+=("$NAME")
-        fi
+    if make -C "$ROOT_DIR/$DIR" install-user; then
+        echo -e "${GREEN}✓ Successfully installed $NAME${RESET}"
+        SUCCESS_APPS+=("$NAME")
     else
-        if make -C "$ROOT_DIR/$DIR" install-user; then
-            echo -e "${GREEN}✓ Successfully installed $NAME${RESET}"
-            SUCCESS_APPS+=("$NAME")
-        else
-            echo -e "${RED}✗ Failed to install $NAME${RESET}"
-            FAILED_APPS+=("$NAME")
-        fi
+        echo -e "${RED}✗ Failed to install $NAME${RESET}"
+        FAILED_APPS+=("$NAME")
     fi
 done
 

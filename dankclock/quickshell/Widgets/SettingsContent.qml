@@ -2,6 +2,7 @@ import QtQuick
 import qs.Common
 import qs.Services
 import qs.DCommon.Common
+import qs.DCommon.FileBrowser
 import qs.DCommon.Widgets
 import qs.Widgets
 
@@ -95,6 +96,109 @@ Item {
                     checked: SettingsData.showSeconds
                     onToggled: chk => SettingsData.showSeconds = chk
                 }
+
+                SettingsToggleRow {
+                    iconName: "pentagon"
+                    text: "World clock M3 shape"
+                    description: "Use Material 3 cookie shape for the analog world clock dial"
+                    checked: SettingsData.worldClockM3Shape
+                    onToggled: chk => SettingsData.worldClockM3Shape = chk
+                }
+            }
+
+            SettingsCard {
+                title: "Alarms & Vacation"
+                iconName: "alarm"
+
+                SettingsButtonGroupRow {
+                    iconName: "snooze"
+                    text: "Default snooze duration"
+                    description: "Snooze length applied to newly created alarms"
+                    model: ["5m", "10m", "15m", "30m"]
+                    currentIndex: {
+                        const opts = [5, 10, 15, 30];
+                        const idx = opts.indexOf(SettingsData.defaultSnoozeMin);
+                        return idx >= 0 ? idx : 1;
+                    }
+                    onSelectionChanged: (idx, sel) => {
+                        if (sel) {
+                            const opts = [5, 10, 15, 30];
+                            SettingsData.defaultSnoozeMin = opts[idx] || 10;
+                        }
+                    }
+                }
+
+                SettingsToggleRow {
+                    iconName: "auto_delete"
+                    text: "Always delete one-time alarms"
+                    description: "Automatically delete one-time alarms after they go off"
+                    checked: SettingsData.alwaysDeleteOneTimeAlarms
+                    onToggled: chk => SettingsData.alwaysDeleteOneTimeAlarms = chk
+                }
+
+                SettingsRow {
+                    iconName: "library_music"
+                    title: "Custom alarm sounds folder"
+                    subtitle: SettingsData.customSoundsFolder !== "" ? SettingsData.customSoundsFolder : "None selected — using built-in alarm sounds"
+
+                    Row {
+                        spacing: Theme.spacingXS
+
+                        DIconButton {
+                            visible: SettingsData.customSoundsFolder !== ""
+                            iconName: "close"
+                            variant: "standard"
+                            size: "s"
+                            tooltipText: "Clear custom sounds folder"
+                            anchors.verticalCenter: parent.verticalCenter
+                            onClicked: SettingsData.customSoundsFolder = ""
+                        }
+
+                        DButton {
+                            text: SettingsData.customSoundsFolder !== "" ? "Change" : "Select folder"
+                            iconName: "folder_open"
+                            buttonHeight: Theme.buttonHeightXS
+                            anchors.verticalCenter: parent.verticalCenter
+                            onClicked: customSoundsFolderModal.open()
+                        }
+                    }
+
+                    FileBrowserModal {
+                        id: customSoundsFolderModal
+                        browserTitle: "Select Alarm Sounds Folder"
+                        folderMode: true
+                        startPath: SettingsData.customSoundsFolder || ""
+                        onFileSelected: path => {
+                            if (path && path.trim() !== "")
+                                SettingsData.customSoundsFolder = path.trim();
+                        }
+                    }
+                }
+
+                SettingsSliderRow {
+                    iconName: "beach_access"
+                    text: "Default vacation duration"
+                    description: "Number of days enabled when turning on Vacation mode (" + SettingsData.vacationDefaultDays + " days)"
+                    minimum: 1
+                    maximum: 30
+                    step: 1
+                    value: SettingsData.vacationDefaultDays
+                    unit: "d"
+                    onSliderValueChanged: v => SettingsData.vacationDefaultDays = v
+                }
+
+                SettingsToggleRow {
+                    iconName: "flip"
+                    text: "Vacation countdown flip clock"
+                    description: "Display an animated days, hours, minutes, and seconds flip clock in Vacation mode"
+                    checked: SettingsData.vacationFlipClock
+                    onToggled: chk => SettingsData.vacationFlipClock = chk
+                }
+            }
+
+            SettingsCard {
+                title: "App & Tray"
+                iconName: "tune"
 
                 SettingsToggleRow {
                     iconName: "notifications"

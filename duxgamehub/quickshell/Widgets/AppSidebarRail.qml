@@ -12,9 +12,14 @@ ColumnLayout {
     signal activated(int index)
 
     readonly property string effectiveStyle: SettingsData.sidebarStyle || "beside"
-    readonly property real railWidth: effectiveStyle === "icons_only" ? 68 : (effectiveStyle === "below" ? Style.navigationRailWidth : 184)
+    readonly property string densityMode: SettingsData.density || "comfortable"
+    readonly property bool isSpacious: densityMode === "spacious"
+    readonly property bool isCompact: densityMode === "compact" || densityMode === "dense"
+    readonly property real railWidth: effectiveStyle === "icons_only"
+        ? (isSpacious ? 76 : (isCompact ? 62 : 68))
+        : (effectiveStyle === "below" ? (isSpacious ? 96 : Style.navigationRailWidth) : (isSpacious ? 204 : (isCompact ? 168 : 184)))
 
-    spacing: 2
+    spacing: isSpacious ? 4 : 2
 
     Repeater {
         model: root.model
@@ -39,7 +44,9 @@ ColumnLayout {
             readonly property real bottomRadius: (active || itemMouse.containsMouse) ? hoverRadius : (itemMouse.pressed ? (Theme.cornerRadiusS ?? 8) : (isLastInGroup ? baseOuterRadius : baseInnerRadius))
 
             Layout.fillWidth: true
-            Layout.preferredHeight: root.effectiveStyle === "below" ? 58 : 44
+            Layout.preferredHeight: root.effectiveStyle === "below"
+                ? (root.isSpacious ? 68 : (root.isCompact ? 50 : 58))
+                : (root.isSpacious ? 52 : (root.isCompact ? 38 : 44))
 
             topLeftRadius: topRadius
             topRightRadius: topRadius
@@ -164,8 +171,8 @@ ColumnLayout {
                 visible: root.effectiveStyle === "beside"
 
                 Rectangle {
-                    Layout.preferredWidth: 28
-                    Layout.preferredHeight: 28
+                    Layout.preferredWidth: root.isSpacious ? 32 : (root.isCompact ? 24 : 28)
+                    Layout.preferredHeight: root.isSpacious ? 32 : (root.isCompact ? 24 : 28)
                     radius: Theme.cornerRadiusS
                     color: navItem.active ? Theme.withAlpha(Theme.primary, Theme.tonalTintAlpha) : "transparent"
 

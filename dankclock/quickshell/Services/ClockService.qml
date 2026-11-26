@@ -17,13 +17,24 @@ Singleton {
     property bool worldClockEditMode: false
     property bool alarmEditMode: false
     property bool vacationSheetOpen: false
+    property int vacationThemeIndex: 0
+    readonly property var vacationThemes: [
+        { file: "Car Driving Landscape.svg", isGif: false, label: "Road Trip" },
+        { file: "Beach Vacation.gif", isGif: true, label: "Beach Vacation" },
+        { file: "Sloth sleeping.svg", isGif: false, label: "Slow & Restful" },
+        { file: "Enjoy Beach Vacation.svg", isGif: false, label: "Enjoy Beach" }
+    ]
+    function randomizeVacationTheme() {
+        vacationThemeIndex = Math.floor(Math.random() * vacationThemes.length);
+    }
     property bool timerEditMode: false
     property bool settingsOpen: false
     property int settingsTabIndex: 0
     property bool timePickerOpen: false
     property int editingAlarmIndex: -1
-    property bool labelDialogOpen: false
     property int editingLabelAlarmIndex: -1
+    property bool newAlarmModalOpen: false
+    property bool newTimerModalOpen: false
     property bool timerSetupMode: false
     property bool reminderEditSheetOpen: false
     property int editingReminderIndex: -1
@@ -124,12 +135,14 @@ Singleton {
     // Alarms: [{ hour: 7, minute: 0, label: "Wake Up", enabled: true, days: ["Mon", ...], soundId: "classic", snoozeMin: 10, deleteAfterGoesOff: false, skippedDateKey: "" }]
     property int alarmRevision: 0
     property int expandedAlarmIndex: -1
-    readonly property var alarmSounds: [
+    readonly property var defaultAlarmSounds: [
         { id: "classic", name: "Classic Bell", icon: "notifications_active", path: "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga" },
         { id: "chime", name: "Bright Chime", icon: "music_note", path: "/usr/share/sounds/freedesktop/stereo/complete.oga" },
         { id: "gentle", name: "Gentle Pulse", icon: "waves", path: "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga" },
         { id: "silent", name: "Silent", icon: "notifications_off", path: "" }
     ]
+    property var customAlarmSounds: []
+    readonly property var alarmSounds: defaultAlarmSounds.concat(customAlarmSounds)
     readonly property var snoozeOptions: [5, 10, 15, 30]
     property var alarms: [
         { hour: 7, minute: 0, label: "Morning Alarm", enabled: true, days: ["Mon", "Tue", "Wed", "Thu", "Fri"], soundId: "classic", snoozeMin: 10, deleteAfterGoesOff: false, skippedDateKey: "" },
@@ -479,6 +492,7 @@ Singleton {
 
     Component.onCompleted: {
         _ensureDefaultPomodoroHistory();
+        refreshCustomSounds();
         const initTab = (Quickshell.env("DCLOCK_INITIAL_TAB") || "").toLowerCase();
         if (initTab === "clock" || initTab === "worldclock")
             currentTabIndex = 1;
@@ -523,19 +537,73 @@ Singleton {
                         root.alarms = data.alarms;
                     if (Array.isArray(data.timers)) {
                         let maxId = 1;
+                        const savedAt = typeof data.savedAtEpochMs === "number" ? data.savedAtEpochMs : 0;
+                        const elapsedSinceSaveMs = savedAt > 0 ? Math.max(0, Date.now() - savedAt) : 0;
                         root.timers = data.timers.map(t => {
                             if (t.id >= maxId)
                                 maxId = t.id + 1;
+                            const totalMs = typeof t.totalMs === "number" && t.totalMs > 0 ? t.totalMs : 60000;
+                            let remMs = typeof t.remainingMs === "number" ? t.remainingMs : totalMs;
+                            let isRunning = Boolean(t.running);
+                            let isStarted = Boolean(t.started) || (remMs > 0 && remMs < totalMs);
+
+                            // On relaunch, finished timers lose their finished/active state
+                            if (t.finished) {
+                                remMs = totalMs;
+                                isRunning = false;
+                                isStarted = false;
+                            } else if (isRunning) {
+                                remMs = remMs - elapsedSinceSaveMs;
+                                if (remMs <= 0) {
+                                    remMs = totalMs;
+                                    isRunning = false;
+                                    isStarted = false;
+                                } else {
+                                    isStarted = true;
+                                }
+                            }
+
                             return {
                                 id: t.id || maxId++,
                                 label: t.label || "Timer",
-                                totalMs: t.totalMs || 60000,
-                                remainingMs: t.totalMs || 60000,
-                                running: false,
-                                finished: false
+                                customNamed: Boolean(t.customNamed),
+                                totalMs: totalMs,
+                                remainingMs: Math.max(0, Math.min(totalMs, remMs)),
+                                running: isRunning,
+                                started: isStarted,
+                                finished: false,
+                                finishedSettled: false,
+                                finishedAtMs: 0
                             };
                         });
                         root._nextTimerId = maxId;
+                        root._lastTimerTickMs = root._monoNowMs;
+                        if (typeof data.activeTimerIndex === "number" && root.timers.length > 0)
+                            root.activeTimerIndex = Math.max(0, Math.min(data.activeTimerIndex, root.timers.length - 1));
+                        root.timerTickRevision++;
+                    }
+                    if (data.stopwatch && typeof data.stopwatch === "object") {
+                        const savedAt = typeof data.savedAtEpochMs === "number" ? data.savedAtEpochMs : 0;
+                        const elapsedSinceSaveMs = savedAt > 0 ? Math.max(0, Date.now() - savedAt) : 0;
+                        const baseElapsed = typeof data.stopwatch.elapsedMs === "number" ? data.stopwatch.elapsedMs : 0;
+                        const swRunning = Boolean(data.stopwatch.running);
+                        root.stopwatchElapsedMs = swRunning ? (baseElapsed + elapsedSinceSaveMs) : baseElapsed;
+                        root.stopwatchLaps = Array.isArray(data.stopwatch.laps) ? data.stopwatch.laps : [];
+                        root.stopwatchRunning = swRunning;
+                        if (swRunning)
+                            root._lastStopwatchTickMs = root._monoNowMs;
+                    }
+                    if (data.pomodoro && typeof data.pomodoro === "object") {
+                        const savedAt = typeof data.savedAtEpochMs === "number" ? data.savedAtEpochMs : 0;
+                        const elapsedSinceSaveSec = savedAt > 0 ? Math.max(0, Math.floor((Date.now() - savedAt) / 1000)) : 0;
+                        if (data.pomodoro.phase)
+                            root.pomodoroPhase = data.pomodoro.phase;
+                        if (typeof data.pomodoro.remainingSeconds === "number") {
+                            const pRun = Boolean(data.pomodoro.running);
+                            const remSec = pRun ? Math.max(0, data.pomodoro.remainingSeconds - elapsedSinceSaveSec) : data.pomodoro.remainingSeconds;
+                            root.pomodoroRemainingSeconds = remSec;
+                            root.pomodoroRunning = pRun && remSec > 0;
+                        }
                     }
                     if (Array.isArray(data.reminders)) {
                         let maxRemId = 1;
@@ -604,14 +672,31 @@ Singleton {
         }
         root._pendingSave = false;
         const payload = {
+            savedAtEpochMs: Date.now(),
             worldClocks: root.worldClocks,
             alarms: root.alarms,
             reminders: root.reminders,
+            activeTimerIndex: root.activeTimerIndex,
             timers: root.timers.map(t => ({
                 id: t.id,
                 label: t.label,
-                totalMs: t.totalMs
+                customNamed: Boolean(t.customNamed),
+                totalMs: t.totalMs,
+                remainingMs: t.remainingMs,
+                running: Boolean(t.running),
+                started: Boolean(t.started),
+                finished: Boolean(t.finished)
             })),
+            stopwatch: {
+                elapsedMs: root.stopwatchElapsedMs,
+                running: Boolean(root.stopwatchRunning),
+                laps: root.stopwatchLaps
+            },
+            pomodoro: {
+                phase: root.pomodoroPhase,
+                remainingSeconds: root.pomodoroRemainingSeconds,
+                running: Boolean(root.pomodoroRunning)
+            },
             pomodoroCyclesCompleted: root.pomodoroCyclesCompleted,
             pomodoroHistory: root.pomodoroHistory,
             vacation: root.vacation
@@ -682,6 +767,8 @@ Singleton {
         Qt.quit();
     }
 
+    property int _sessionSaveCounter: 0
+
     // Wall-clock 1-second timer for Clock & Alarms
     Timer {
         interval: 1000
@@ -693,8 +780,37 @@ Singleton {
             if (root._stateReady) {
                 root._checkAlarms(root.now);
                 root._checkReminders(root.now);
+                root._checkFinishedTimers();
+                if (root.anyTimerRunning || root.stopwatchRunning || root.pomodoroRunning) {
+                    root._sessionSaveCounter++;
+                    if (root._sessionSaveCounter >= 5) {
+                        root._sessionSaveCounter = 0;
+                        root.saveState();
+                    }
+                } else {
+                    root._sessionSaveCounter = 0;
+                }
             }
         }
+    }
+
+    function _checkFinishedTimers() {
+        const nowMs = Date.now();
+        const expiryMs = 3 * 60 * 1000;
+        let settledAny = false;
+        for (let i = timers.length - 1; i >= 0; i--) {
+            const t = timers[i];
+            if (t && t.finished && !t.running && typeof t.finishedAtMs === "number" && t.finishedAtMs > 0 && (nowMs - t.finishedAtMs) >= expiryMs) {
+                if (!t.customNamed) {
+                    removeTimer(i);
+                } else if (!t.finishedSettled) {
+                    t.finishedSettled = true;
+                    settledAny = true;
+                }
+            }
+        }
+        if (settledAny)
+            timerTickRevision++;
     }
 
     function _settleRunningTimers() {
@@ -716,7 +832,10 @@ Singleton {
                 tickChanged = true;
                 if (done) {
                     t.running = false;
+                    t.started = false;
                     t.finished = true;
+                    t.finishedSettled = false;
+                    t.finishedAtMs = Date.now();
                     stateChanged = true;
                     root._triggerAlert("timer", t.label || "Timer", root.formatDuration(t.totalMs) + " countdown finished", -1, t.id);
                 }
@@ -983,6 +1102,68 @@ Singleton {
     }
 
     Process {
+        id: scanSoundsProc
+        property var _collectedPaths: []
+        running: false
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: line => {
+                const p = line.trim();
+                if (p !== "")
+                    scanSoundsProc._collectedPaths.push(p);
+            }
+        }
+        onExited: {
+            const paths = scanSoundsProc._collectedPaths.slice().sort((a, b) => {
+                const ba = a.split("/").pop().toLowerCase();
+                const bb = b.split("/").pop().toLowerCase();
+                return ba.localeCompare(bb);
+            });
+            const list = [];
+            for (let i = 0; i < paths.length; i++) {
+                const p = paths[i];
+                const fileName = p.split("/").pop();
+                const base = fileName.replace(/\.[^.]+$/, "");
+                const displayName = base.replace(/[_-]+/g, " ").trim() || fileName;
+                list.push({
+                    id: "custom:" + p,
+                    name: displayName,
+                    icon: "audio_file",
+                    path: p
+                });
+            }
+            root.customAlarmSounds = list;
+            root.alarmRevision++;
+        }
+    }
+
+    function refreshCustomSounds() {
+        const folder = (SettingsData.customSoundsFolder || "").trim();
+        if (scanSoundsProc.running)
+            scanSoundsProc.running = false;
+        if (folder === "") {
+            customAlarmSounds = [];
+            alarmRevision++;
+            return;
+        }
+        scanSoundsProc._collectedPaths = [];
+        scanSoundsProc.command = [
+            "find", folder, "-maxdepth", "2", "-type", "f",
+            "(", "-iname", "*.ogg", "-o", "-iname", "*.oga", "-o", "-iname", "*.wav",
+            "-o", "-iname", "*.mp3", "-o", "-iname", "*.flac", "-o", "-iname", "*.m4a",
+            "-o", "-iname", "*.opus", ")"
+        ];
+        scanSoundsProc.running = true;
+    }
+
+    Connections {
+        target: SettingsData
+        function onCustomSoundsFolderChanged() {
+            root.refreshCustomSounds();
+        }
+    }
+
+    Process {
         id: soundPlayerProc
         running: false
         command: []
@@ -1003,7 +1184,7 @@ Singleton {
         }
         Quickshell.execDetached([
             "sh", "-c",
-            "pkill -x pw-play 2>/dev/null || pkill -x canberra-gtk-play 2>/dev/null || pkill -x paplay 2>/dev/null || true"
+            "pkill -x pw-play 2>/dev/null || pkill -x canberra-gtk-play 2>/dev/null || pkill -x paplay 2>/dev/null || pkill -x ffplay 2>/dev/null || pkill -x mpv 2>/dev/null || true"
         ]);
     }
 
@@ -1022,7 +1203,8 @@ Singleton {
 
         soundPlayerProc.command = [
             "sh", "-c",
-            `exec pw-play --volume ${pwVol} "${s.path}" 2>/dev/null || exec paplay --volume=${paVol} "${s.path}" 2>/dev/null || true`
+            `exec pw-play --volume ${pwVol} "$1" 2>/dev/null || exec paplay --volume=${paVol} "$1" 2>/dev/null || exec ffplay -nodisp -autoexit -loglevel quiet -volume ${vol} "$1" 2>/dev/null || exec mpv --no-video --really-quiet --volume=${vol} "$1" 2>/dev/null || true`,
+            "_", s.path
         ];
         soundPlayerProc.running = true;
     }
@@ -1121,6 +1303,12 @@ Singleton {
                     continue;
                 }
 
+                // If this specific alarm is paused for today's date range, skip firing
+                if (isAlarmPausedOnDate(a, todayKey)) {
+                    stateModified = true;
+                    continue;
+                }
+
                 if (!hasSnoozeDeadline && hasDays && a.skippedDateKey === todayKey) {
                     a.skippedDateKey = "";
                     stateModified = true;
@@ -1160,8 +1348,33 @@ Singleton {
     function openAddAlarmPicker() {
         if (!root._stateReady)
             return;
-        editingAlarmIndex = -1;
-        timePickerOpen = true;
+        newAlarmModalOpen = true;
+    }
+
+    function createAlarm(alarmData) {
+        if (!root._stateReady || !alarmData)
+            return;
+        const next = alarms.slice();
+        const days = Array.isArray(alarmData.days) ? alarmData.days.slice() : ["Mon", "Tue", "Wed", "Thu", "Fri"];
+        next.push({
+            hour: typeof alarmData.hour === "number" ? alarmData.hour : 7,
+            minute: typeof alarmData.minute === "number" ? alarmData.minute : 0,
+            label: (alarmData.label || "").trim() || "Alarm",
+            enabled: alarmData.enabled !== undefined ? Boolean(alarmData.enabled) : true,
+            days: days,
+            soundId: alarmData.soundId || "classic",
+            snoozeMin: alarmData.snoozeMin || SettingsData.defaultSnoozeMin || 10,
+            volume: typeof alarmData.volume === "number" ? alarmData.volume : 100,
+            deleteAfterGoesOff: alarmData.deleteAfterGoesOff !== undefined ? Boolean(alarmData.deleteAfterGoesOff) : SettingsData.alwaysDeleteOneTimeAlarms,
+            skippedDateKey: "",
+            lastTriggeredMinuteKey: "",
+            snoozeUntilMs: 0
+        });
+        alarms = next;
+        expandedAlarmIndex = next.length - 1;
+        alarmRevision++;
+        newAlarmModalOpen = false;
+        saveState();
     }
 
     function openEditAlarmPicker(index) {
@@ -1192,9 +1405,9 @@ Singleton {
                 enabled: true,
                 days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
                 soundId: "classic",
-                snoozeMin: 10,
+                snoozeMin: SettingsData.defaultSnoozeMin || 10,
                 volume: 100,
-                deleteAfterGoesOff: false,
+                deleteAfterGoesOff: SettingsData.alwaysDeleteOneTimeAlarms,
                 skippedDateKey: "",
                 lastTriggeredMinuteKey: "",
                 snoozeUntilMs: 0
@@ -1243,8 +1456,36 @@ Singleton {
     function updateAlarmDays(index, daysArray) {
         if (!root._stateReady || index < 0 || index >= alarms.length)
             return;
+        const wasRepeating = Array.isArray(alarms[index].days) && alarms[index].days.length > 0;
         alarms[index].days = daysArray;
+        if (wasRepeating && (!Array.isArray(daysArray) || daysArray.length === 0))
+            alarms[index].deleteAfterGoesOff = SettingsData.alwaysDeleteOneTimeAlarms;
         alarms[index].skippedDateKey = "";
+        alarmRevision++;
+        saveState();
+    }
+
+    function snoozeAlarm(index, minutes) {
+        if (!root._stateReady || index < 0 || index >= alarms.length)
+            return;
+        const mins = minutes || alarms[index].snoozeMin || SettingsData.defaultSnoozeMin || 10;
+        alarms[index].enabled = true;
+        alarms[index].snoozeUntilMs = Date.now() + mins * 60000;
+        alarmRevision++;
+        saveState();
+    }
+
+    function isAlarmPausedOnDate(a, dateKey) {
+        if (!a || !a.pauseStartDate || !a.pauseEndDate || !dateKey)
+            return false;
+        return dateKey >= a.pauseStartDate && dateKey <= a.pauseEndDate;
+    }
+
+    function updateAlarmPauseRange(index, startDate, endDate) {
+        if (!root._stateReady || index < 0 || index >= alarms.length)
+            return;
+        alarms[index].pauseStartDate = startDate || "";
+        alarms[index].pauseEndDate = endDate || "";
         alarmRevision++;
         saveState();
     }
@@ -1334,7 +1575,6 @@ Singleton {
 
         if (editingLabelAlarmIndex === index) {
             editingLabelAlarmIndex = -1;
-            labelDialogOpen = false;
         } else if (editingLabelAlarmIndex > index) {
             editingLabelAlarmIndex--;
         }
@@ -1537,13 +1777,19 @@ Singleton {
 
     // Timer Management
     function startCustomTimer(label) {
+        const totalSec = setupHours * 3600 + setupMinutes * 60 + setupSeconds;
+        createAndStartTimer(totalSec, label);
+    }
+
+    function createAndStartTimer(totalSec, label) {
         if (!root._stateReady)
             return;
-        const totalSec = setupHours * 3600 + setupMinutes * 60 + setupSeconds;
         if (totalSec <= 0)
             return;
-        startPresetTimer(totalSec, label || _defaultTimerLabel(totalSec));
+        const trimmed = (label || "").trim();
+        startPresetTimer(totalSec, trimmed || _defaultTimerLabel(totalSec), trimmed !== "");
         timerSetupMode = false;
+        newTimerModalOpen = false;
     }
 
     function _defaultTimerLabel(totalSec) {
@@ -1552,7 +1798,7 @@ Singleton {
         return `${formatDuration(totalSec * 1000)} Timer`;
     }
 
-    function startPresetTimer(durationSec, label) {
+    function startPresetTimer(durationSec, label, isCustomNamed) {
         if (!root._stateReady)
             return;
         if (anyTimerRunning)
@@ -1562,10 +1808,14 @@ Singleton {
         const newTimer = {
             id: _nextTimerId++,
             label: label || _defaultTimerLabel(durationSec),
+            customNamed: Boolean(isCustomNamed),
             totalMs: ms,
             remainingMs: ms,
             running: true,
-            finished: false
+            started: true,
+            finished: false,
+            finishedSettled: false,
+            finishedAtMs: 0
         };
         _lastTimerTickMs = _monoNowMs;
         next.unshift(newTimer);
@@ -1588,32 +1838,45 @@ Singleton {
         if (willRun)
             _lastTimerTickMs = _monoNowMs;
         t.running = willRun;
+        t.started = true;
         t.finished = false;
+        t.finishedSettled = false;
+        t.finishedAtMs = 0;
         timerTickRevision++;
+        saveState();
     }
 
     function resetTimer(index) {
         if (!root._stateReady || index < 0 || index >= timers.length)
             return;
         const t = timers[index];
-        t.remainingMs = t.totalMs;
+        const baseTotal = (typeof t.originalTotalMs === "number" && t.originalTotalMs > 0) ? t.originalTotalMs : t.totalMs;
+        t.totalMs = baseTotal;
+        t.remainingMs = baseTotal;
         t.running = false;
+        t.started = false;
         t.finished = false;
+        t.finishedSettled = false;
+        t.finishedAtMs = 0;
         timerTickRevision++;
+        saveState();
     }
 
     function addOneMinute(index) {
         if (!root._stateReady || index < 0 || index >= timers.length)
             return;
         const t = timers[index];
+        if (typeof t.originalTotalMs !== "number" || t.originalTotalMs <= 0)
+            t.originalTotalMs = t.totalMs;
         const extra = 60 * 1000;
-        const prevTotal = t.totalMs;
-        t.totalMs = Math.max(t.totalMs, t.remainingMs + extra);
         t.remainingMs = t.remainingMs + extra;
+        t.totalMs = Math.max(t.totalMs, t.remainingMs);
+        t.started = true;
         t.finished = false;
+        t.finishedSettled = false;
+        t.finishedAtMs = 0;
         timerTickRevision++;
-        if (t.totalMs !== prevTotal)
-            saveState();
+        saveState();
     }
 
     function removeTimer(index) {
@@ -1654,6 +1917,7 @@ Singleton {
         } else {
             stopwatchRunning = false;
         }
+        saveState();
     }
 
     function lapStopwatch() {
@@ -1668,12 +1932,14 @@ Singleton {
             totalMs: stopwatchElapsedMs
         });
         stopwatchLaps = next;
+        saveState();
     }
 
     function resetStopwatch() {
         stopwatchRunning = false;
         stopwatchElapsedMs = 0;
         stopwatchLaps = [];
+        saveState();
     }
 
     // Formatting Helpers
@@ -1712,7 +1978,7 @@ Singleton {
     function testNotification(notifType) {
         const t = notifType || "timer";
         const samples = {
-            alarm: { type: "alarm", title: "Test Alarm", subtitle: "07:00 — Wake up! (Test)", soundId: "classic", volume: 0.8 },
+            alarm: { type: "alarm", title: "Test Alarm", subtitle: "07:00 — Wake up! (Test)", soundId: "classic", volume: 0.8, alarmIndex: -1, snoozeMin: SettingsData.defaultSnoozeMin || 10 },
             reminder: { type: "reminder", title: "Test Reminder", subtitle: "Sample reminder notification", reminderIndex: -1 },
             timer: { type: "timer", title: "Test Timer", subtitle: "00:05:00 Timer finished", soundId: "classic", volume: 0.8 },
             pomodoro: { type: "pomodoro", title: "Test Pomodoro", subtitle: "Focus session complete — take a break!", soundId: "classic", volume: 0.8 }
@@ -1749,17 +2015,27 @@ Singleton {
             }
             _playSystemNotificationSound();
         } else {
+            const isAlarm = alertObj.type === "alarm";
+            const alarmIdx = typeof alertObj.alarmIndex === "number" ? alertObj.alarmIndex : -1;
+            const snoozeMins = alertObj.snoozeMin || SettingsData.defaultSnoozeMin || 10;
+            const cmd = [
+                "dms", "notify",
+                "-a", "DUX Clock",
+                "-n", "com.danklinux.dankclock",
+                "-i", iconName,
+                "-u", "critical"
+            ];
+            if (isAlarm) {
+                cmd.push("-A", `snooze=Snooze for ${snoozeMins} m`);
+            }
+            cmd.push("-A", "dismiss=Dismiss");
+            cmd.push(String(alertObj.title || "DUX Clock"));
+            cmd.push(String(alertObj.subtitle || ""));
+
             const proc = alertNotifyComponent.createObject(root, {
-                command: [
-                    "dms", "notify",
-                    "-a", "DUX Clock",
-                    "-n", "com.danklinux.dankclock",
-                    "-i", iconName,
-                    "-u", "critical",
-                    "-A", "dismiss=Dismiss",
-                    String(alertObj.title || "DUX Clock"),
-                    String(alertObj.subtitle || "")
-                ]
+                alarmIndex: alarmIdx,
+                snoozeMin: snoozeMins,
+                command: cmd
             });
             if (proc) {
                 proc.running = true;
@@ -1772,6 +2048,8 @@ Singleton {
         id: alertNotifyComponent
         Process {
             id: ap
+            property int alarmIndex: -1
+            property int snoozeMin: 10
             running: false
             stdout: SplitParser {
                 splitMarker: "\n"
@@ -1779,6 +2057,11 @@ Singleton {
                     const action = data.trim();
                     if (action === "dismiss") {
                         root.stopSound();
+                    } else if (action === "snooze") {
+                        root.stopSound();
+                        if (ap.alarmIndex >= 0) {
+                            root.snoozeAlarm(ap.alarmIndex, ap.snoozeMin);
+                        }
                     }
                 }
             }
