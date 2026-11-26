@@ -57,6 +57,8 @@ FloatingWindow {
 
         // Keyboard navigation and math input
         Keys.onPressed: event => {
+            if (event.text && event.text.length === 1)
+                CalculatorService.triggerKeyPressAnim(event.text);
             if (event.modifiers & Qt.ControlModifier) {
                 switch (event.key) {
                 case Qt.Key_Comma:
@@ -433,9 +435,9 @@ FloatingWindow {
                                 anchors.leftMargin: Theme.spacingM
                                 anchors.rightMargin: Theme.spacingM
 
-                                // Calculator Mode: RAD / DEG Chip
+                                // Calculator Mode: RAD / DEG Chip (moved into CalculatorDisplay)
                         Rectangle {
-                            visible: CalculatorService.currentMode === "calculator"
+                            visible: false
                             implicitHeight: Style.buttonHeightXS
                             implicitWidth: radText.implicitWidth + Theme.spacingM * 2
                             radius: height / 2
@@ -474,57 +476,13 @@ FloatingWindow {
                             }
                         }
 
-                        // Converter Mode: Category Dropdown Button (Left-aligned next to Menu)
-                        Rectangle {
-                            visible: CalculatorService.currentMode === "converter"
-                            implicitHeight: Style.buttonHeightXS
-                            implicitWidth: catBtnRow.implicitWidth + Style.spacingL
-                            radius: height / 2
-                            color: catBtnMouse.containsMouse || CalculatorService.categoryMenuOpen
-                                   ? Theme.surfaceContainerHighest
-                                   : Theme.surfaceContainerHigh
-                            border.color: M3E.stroke(Theme.outlineVariant, M3E.strokeControl)
-                            border.width: 1
-
-                            RowLayout {
-                                id: catBtnRow
-                                anchors.centerIn: parent
-                                spacing: Style.spacingXS
-
-                                DIcon {
-                                    name: ConvLogic.getCategory(CalculatorService.converterCategory).icon
-                                    size: Style.iconSizeSmall
-                                    color: Theme.primary
-                                }
-
-                                StyledText {
-                                    text: ConvLogic.getCategory(CalculatorService.converterCategory).name
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    font.weight: Font.Medium
-                                    color: Theme.surfaceText
-                                }
-
-                                DIcon {
-                                    name: "arrow_drop_down"
-                                    size: Style.iconSizeSmall
-                                    color: Theme.surfaceVariantText
-                                }
-                            }
-
-                            MouseArea {
-                                id: catBtnMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: CalculatorService.categoryMenuOpen = !CalculatorService.categoryMenuOpen
-                            }
-                        }
+                        // Converter Mode: Category Dropdown Button (moved into ConverterView)
 
                         Item { Layout.fillWidth: true }
 
-                        // Calculator Mode: History Button
+                        // Calculator Mode: History Button (moved into CalculatorDisplay)
                         DIconButton {
-                            visible: CalculatorService.currentMode === "calculator"
+                            visible: false
                             iconName: "history"
                             size: "s"
                             variant: "standard"
@@ -534,87 +492,137 @@ FloatingWindow {
                     }
                 }
 
-                // Standard Calculator Content
-                ColumnLayout {
+                // Standard Calculator Content (60% Display Left / 40% Phone-style Keypad Right in Landscape)
+                GridLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 0
+                    columns: window.isLandscape ? 3 : 1
+                    columnSpacing: 4
+                    rowSpacing: Theme.spacingS
                     visible: CalculatorService.currentMode === "calculator"
 
-                    // Display Area
+                    // Left: Display / Calculations Area (shrinks when history slides out)
                     CalculatorDisplay {
                         Layout.fillWidth: true
+                        Layout.fillHeight: window.isLandscape
+                        Layout.leftMargin: Theme.spacingM
+                        Layout.bottomMargin: Theme.spacingM
+                        Layout.preferredWidth: window.isLandscape
+                            ? Math.floor(parent.width * (CalculatorService.historyOpen ? 0.28 : 0.50))
+                            : -1
                         Layout.preferredHeight: window.isLandscape
-                            ? Math.max(64, Math.min(110, parent.height * 0.24))
-                            : Math.max(54, Math.min(120, parent.height * 0.16))
+                            ? -1
+                            : Math.max(120, Math.min(220, parent.height * 0.32))
+
+                        Behavior on Layout.preferredWidth {
+                            DAnim {
+                                duration: Theme.mediumDuration
+                                easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
+                            }
+                        }
                     }
 
-                    // Scientific Drawer Toggle Row (Portrait only)
-                    Item {
-                        Layout.fillWidth: true
-                        implicitHeight: Style.iconSize
-                        visible: !window.isLandscape
+                    // Middle: Inline History Slideout (Landscape)
+                    HistoryPanel {
+                        id: inlineHistoryPanel
+                        inlineMode: true
+                        Layout.fillWidth: false
+                        Layout.fillHeight: true
+                        Layout.bottomMargin: Theme.spacingM
+                        Layout.minimumWidth: 0
+                        Layout.preferredWidth: (window.isLandscape && CalculatorService.historyOpen)
+                            ? Math.floor(parent.width * 0.22)
+                            : 0
 
+                        Behavior on Layout.preferredWidth {
+                            DAnim {
+                                duration: Theme.mediumDuration
+                                easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
+                            }
+                        }
+                    }
+
+                    // Right (50%): Phone-style Buttons Area (Scientific on top + Keypad below)
+                    ColumnLayout {
+                        Layout.fillWidth: !window.isLandscape
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: window.isLandscape ? Math.floor(parent.width * 0.50) : -1
+                        Layout.bottomMargin: Theme.spacingM
+                        spacing: Theme.spacingS
+
+                        // Scientific Drawer Container (Full button-side width, expands scientific calc inside)
                         Rectangle {
-                            anchors.centerIn: parent
-                            width: Style.buttonHeightS
-                            height: Style.iconSizeMedium
-                            radius: height / 2
-                            color: sciMouse.containsMouse ? Theme.surfaceContainerHighest : "transparent"
+                            Layout.fillWidth: true
+                            Layout.rightMargin: window.isLandscape ? Theme.spacingM : 0
+                            Layout.fillHeight: window.scientificOpen
+                            Layout.preferredHeight: window.scientificOpen ? 3 : sciHeader.implicitHeight + Theme.spacingXS * 2
+                            radius: Theme.cornerRadiusXL
+                            color: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                            border.width: 1
+                            border.color: sciMouse.containsMouse ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+                            clip: true
 
-                            DIcon {
-                                id: sciIcon
-                                anchors.centerIn: parent
-                                name: "expand_more"
-                                size: Style.iconSizeMedium
-                                color: Theme.surfaceVariantText
-                                rotation: window.scientificOpen ? 180 : 0
-
-                                Behavior on rotation {
-                                    DAnim {
-                                        duration: Theme.mediumDuration
-                                        easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
-                                    }
+                            Behavior on Layout.preferredHeight {
+                                DAnim {
+                                    duration: Theme.mediumDuration
+                                    easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
                                 }
                             }
 
-                            MouseArea {
-                                id: sciMouse
+                            ColumnLayout {
                                 anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: window.scientificOpen = !window.scientificOpen
+                                anchors.margins: Theme.spacingXS
+                                spacing: Theme.spacingXS
+
+                                // Full-width Arrow Toggle Row
+                                Item {
+                                    id: sciHeader
+                                    Layout.fillWidth: true
+                                    implicitHeight: Style.iconSizeMedium
+
+                                    DIcon {
+                                        id: sciIcon
+                                        anchors.centerIn: parent
+                                        name: "expand_more"
+                                        size: Style.iconSizeMedium
+                                        color: sciMouse.containsMouse ? Theme.primary : Theme.surfaceVariantText
+                                        rotation: window.scientificOpen ? 180 : 0
+
+                                        Behavior on rotation {
+                                            DAnim {
+                                                duration: Theme.mediumDuration
+                                                easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
+                                            }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: sciMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: window.scientificOpen = !window.scientificOpen
+                                    }
+                                }
+
+                                // Scientific Keypad Drawer (expands inside this container)
+                                ScientificDrawer {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: window.scientificOpen
+                                    visible: window.scientificOpen
+                                    expanded: window.scientificOpen
+                                    landscape: false
+                                }
                             }
                         }
-                    }
 
-                    // Keypads Area (Stacked in Portrait, Side-by-side in Landscape)
-                    GridLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        columns: window.isLandscape ? 2 : 1
-                        columnSpacing: Theme.spacingS
-                        rowSpacing: 0
-
-                        // Scientific Keypad Drawer
-                        ScientificDrawer {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: window.isLandscape || window.scientificOpen
-                            Layout.preferredWidth: window.isLandscape ? 3 : -1
-                            Layout.preferredHeight: window.isLandscape ? -1 : (window.scientificOpen ? 3 : 0)
-                            visible: window.isLandscape || window.scientificOpen
-                            expanded: window.isLandscape || window.scientificOpen
-                            landscape: window.isLandscape
-                        }
-
-                        // Main Keypad
+                        // Main Keypad (Bottom)
                         CalculatorKeypad {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            Layout.preferredWidth: window.isLandscape ? 4 : -1
-                            Layout.preferredHeight: window.isLandscape ? -1 : 5
+                            Layout.preferredHeight: 5
                             scientificOpen: window.scientificOpen
-                            landscape: window.isLandscape
+                            landscape: false
                         }
                     }
                 }
@@ -638,6 +646,7 @@ FloatingWindow {
 
         HistoryPanel {
             id: historyPanel
+            visible: !window.isLandscape && opacity > 0
         }
 
         // In-window toast notification pill

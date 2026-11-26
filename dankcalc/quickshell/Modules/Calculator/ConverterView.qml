@@ -13,109 +13,233 @@ Item {
 
     GridLayout {
         anchors.fill: parent
-        anchors.leftMargin: Math.min(Theme.spacingL, Math.max(Theme.spacingM, root.width * 0.04))
-        anchors.rightMargin: Math.min(Theme.spacingL, Math.max(Theme.spacingM, root.width * 0.04))
-        anchors.bottomMargin: Math.min(Theme.spacingM, Math.max(Theme.spacingS, root.height * 0.03))
-        columns: root.isLandscape ? 2 : 1
-        columnSpacing: Theme.spacingL
-        rowSpacing: Theme.spacingM
+        anchors.leftMargin: Theme.spacingM
+        anchors.rightMargin: Theme.spacingM
+        anchors.bottomMargin: Theme.spacingM
+        columns: root.isLandscape ? 3 : 1
+        columnSpacing: 4
+        rowSpacing: Theme.spacingS
 
         // ── LEFT / TOP PANE: DISPLAY + UNIT SELECTORS ───────────────────────
-        ColumnLayout {
+        Rectangle {
             id: leftPane
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredWidth: root.isLandscape ? 1 : -1
-            spacing: Theme.spacingM
+            Layout.preferredWidth: root.isLandscape
+                ? Math.floor(parent.width * (CalculatorService.historyOpen ? 0.28 : 0.50))
+                : -1
+            radius: Theme.cornerRadiusXL
+            topRightRadius: CalculatorService.historyOpen ? (Theme.cornerRadiusS ?? 8) : Theme.cornerRadiusXL
+            bottomRightRadius: CalculatorService.historyOpen ? (Theme.cornerRadiusS ?? 8) : Theme.cornerRadiusXL
+            color: Theme.foregroundColor(Theme.surfaceContainerLow, true)
+            border.width: 1
+            border.color: Theme.outlineMedium ?? Theme.outlineVariant
+            clip: true
 
-            // ── VALUE & UNIT CONVERSION DISPLAY AREA ─────────────────────────
-            Item {
-                id: displayArea
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.minimumHeight: root.isLandscape ? 90 : 120
+            Behavior on Layout.preferredWidth {
+                DAnim {
+                    duration: Theme.mediumDuration
+                    easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
+                }
+            }
 
-                ColumnLayout {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.verticalCenterOffset: -Theme.spacingXS
-                    spacing: Theme.spacingM
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: Theme.spacingM
+                spacing: Theme.spacingM
 
-                    // "From" Value & Unit (Secondary / Input)
-                    ColumnLayout {
-                        Layout.alignment: Qt.AlignRight
-                        spacing: 2
+                // Top Bar: Category Selector on Left, History Button on Right
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.spacingS
 
-                        StyledText {
-                            Layout.alignment: Qt.AlignRight
-                            text: CalculatorService.converterFromValue
-                            font.pixelSize: Math.max(22, Math.min(36, displayArea.width * 0.09))
-                            font.weight: Font.Normal
-                            color: Theme.surfaceText
-                            horizontalAlignment: Text.AlignRight
-                            elide: Text.ElideLeft
+                    Rectangle {
+                        id: convCatBtn
+                        width: convCatRow.implicitWidth + Theme.spacingM * 2
+                        height: 32
+                        radius: (convCatMouse.pressed || convCatMouse.containsMouse) ? height / 2 : (Theme.cornerRadiusS ?? 8)
+                        color: (CalculatorService.categoryMenuOpen || convCatMouse.containsMouse) ? Theme.withAlpha(Theme.primary, 0.2) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                        border.width: 1
+                        border.color: (CalculatorService.categoryMenuOpen || convCatMouse.containsMouse) ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+                        scale: convCatMouse.pressed ? 0.96 : 1.0
+
+                        Behavior on radius { DAnim { duration: Theme.shortDuration; easing.bezierCurve: Theme.expressiveCurves.standard } }
+                        Behavior on scale { DAnim { duration: Theme.shortDuration; easing.bezierCurve: Theme.expressiveCurves.fastSpatial } }
+                        Behavior on color { DColorAnim { duration: Theme.shortDuration } }
+
+                        Row {
+                            id: convCatRow
+                            anchors.centerIn: parent
+                            spacing: 4
+                            DIcon { name: ConvLogic.getCategory(CalculatorService.converterCategory).icon; size: 15; color: Theme.primary; anchors.verticalCenter: parent.verticalCenter }
+                            StyledText { text: ConvLogic.getCategory(CalculatorService.converterCategory).name; font.pixelSize: Theme.fontSizeSmall; font.weight: Font.Medium; color: Theme.surfaceText; anchors.verticalCenter: parent.verticalCenter }
+                            DIcon { name: "arrow_drop_down"; size: 15; color: Theme.surfaceVariantText; anchors.verticalCenter: parent.verticalCenter }
                         }
-
-                        StyledText {
-                            Layout.alignment: Qt.AlignRight
-                            text: ConvLogic.getUnitName(CalculatorService.converterCategory, CalculatorService.converterFromUnit)
-                            font.pixelSize: Theme.fontSizeMedium
-                            font.weight: Font.Medium
-                            color: Theme.surfaceVariantText
-                            horizontalAlignment: Text.AlignRight
-                        }
-                    }
-
-                    // "To" Value & Unit (Primary / Result - Click to copy)
-                    Item {
-                        id: toValueRow
-                        Layout.alignment: Qt.AlignRight
-                        implicitWidth: toValCol.implicitWidth
-                        implicitHeight: toValCol.implicitHeight
 
                         MouseArea {
-                            id: toCardMouse
+                            id: convCatMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.LeftButton
-                            onClicked: CalculatorService.copyConverterResult()
+                            onClicked: CalculatorService.categoryMenuOpen = !CalculatorService.categoryMenuOpen
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Rectangle {
+                        id: convHistBtn
+                        visible: !CalculatorService.historyOpen
+                        width: convHistRow.implicitWidth + Theme.spacingM * 2
+                        height: 32
+                        radius: (convHistMouse.pressed || convHistMouse.containsMouse) ? height / 2 : (Theme.cornerRadiusS ?? 8)
+                        color: (CalculatorService.historyOpen || convHistMouse.containsMouse) ? Theme.withAlpha(Theme.primary, 0.2) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                        border.width: 1
+                        border.color: (CalculatorService.historyOpen || convHistMouse.containsMouse) ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+                        scale: convHistMouse.pressed ? 0.96 : 1.0
+
+                        Behavior on radius { DAnim { duration: Theme.shortDuration; easing.bezierCurve: Theme.expressiveCurves.standard } }
+                        Behavior on scale { DAnim { duration: Theme.shortDuration; easing.bezierCurve: Theme.expressiveCurves.fastSpatial } }
+                        Behavior on color { DColorAnim { duration: Theme.shortDuration } }
+
+                        Row {
+                            id: convHistRow
+                            anchors.centerIn: parent
+                            spacing: 4
+                            DIcon { name: "history"; size: 15; color: convHistMouse.containsMouse ? Theme.primary : Theme.surfaceVariantText; anchors.verticalCenter: parent.verticalCenter }
+                            StyledText { text: "History"; font.pixelSize: Theme.fontSizeSmall; font.weight: Font.Medium; color: convHistMouse.containsMouse ? Theme.primary : Theme.surfaceText; anchors.verticalCenter: parent.verticalCenter }
                         }
 
-                        ColumnLayout {
-                            id: toValCol
-                            anchors.right: parent.right
-                            spacing: 2
+                        MouseArea {
+                            id: convHistMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: CalculatorService.historyOpen = !CalculatorService.historyOpen
+                        }
+                    }
+                }
 
-                            StyledText {
-                                Layout.alignment: Qt.AlignRight
-                                text: CalculatorService.converterToValue
-                                font.pixelSize: Math.max(28, Math.min(50, displayArea.width * 0.12))
-                                font.weight: Font.Bold
-                                color: toCardMouse.containsMouse ? Theme.primary : Theme.surfaceText
-                                horizontalAlignment: Text.AlignRight
-                                elide: Text.ElideLeft
+                // ── VALUE & UNIT CONVERSION DISPLAY AREA ─────────────────────────
+                Item {
+                    id: displayArea
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: root.isLandscape ? 90 : 120
 
-                                Behavior on color {
-                                    DColorAnim {
-                                        duration: M3E.effectsFastMs
-                                        easing.bezierCurve: M3E.curveFastEffects
-                                    }
-                                }
+                    ColumnLayout {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        spacing: 2
+
+                        readonly property real outerR: Theme.groupedListOuterRadius ?? 16
+                        readonly property real innerR: Theme.groupedListInnerRadius ?? 4
+
+                        // Top Segment: "To" Value & Unit (Primary / Result - Click to copy)
+                        Rectangle {
+                            id: toValueRow
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: toValCol.implicitHeight + Theme.spacingM * 2
+                            topLeftRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : parent.outerR
+                            topRightRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : parent.outerR
+                            bottomLeftRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : parent.innerR
+                            bottomRightRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : parent.innerR
+                            color: toCardMouse.containsMouse ? Theme.foregroundColor(Theme.surfaceContainerHighest, true) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                            border.width: 1
+                            border.color: toCardMouse.containsMouse ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+
+                            Behavior on color { DColorAnim { duration: Theme.shortDuration } }
+
+                            MouseArea {
+                                id: toCardMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                acceptedButtons: Qt.LeftButton
+                                onClicked: CalculatorService.copyConverterResult()
                             }
 
-                            StyledText {
-                                Layout.alignment: Qt.AlignRight
-                                text: ConvLogic.getUnitName(CalculatorService.converterCategory, CalculatorService.converterToUnit)
-                                font.pixelSize: Theme.fontSizeLarge
-                                font.weight: Font.SemiBold
-                                color: Theme.primary
-                                horizontalAlignment: Text.AlignRight
+                            ColumnLayout {
+                                id: toValCol
+                                anchors.fill: parent
+                                anchors.topMargin: Theme.spacingM
+                                anchors.bottomMargin: Theme.spacingM
+                                anchors.leftMargin: Theme.spacingM
+                                anchors.rightMargin: Theme.spacingL
+                                spacing: 2
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: CalculatorService.converterToValue
+                                    font.pixelSize: Math.max(28, Math.min(50, displayArea.width * 0.12))
+                                    font.weight: Font.Bold
+                                    color: toCardMouse.containsMouse ? Theme.primary : Theme.surfaceText
+                                    horizontalAlignment: Text.AlignRight
+                                    elide: Text.ElideLeft
+
+                                    Behavior on color {
+                                        DColorAnim {
+                                            duration: M3E.effectsFastMs
+                                            easing.bezierCurve: M3E.curveFastEffects
+                                        }
+                                    }
+                                }
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: ConvLogic.getUnitName(CalculatorService.converterCategory, CalculatorService.converterToUnit)
+                                    font.pixelSize: Theme.fontSizeMedium
+                                    font.weight: Font.SemiBold
+                                    color: Theme.primary
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+                        }
+
+                        // Bottom Segment: "From" Value & Unit (Secondary / Input)
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: fromValCol.implicitHeight + Theme.spacingS * 2
+                            topLeftRadius: parent.innerR
+                            topRightRadius: parent.innerR
+                            bottomLeftRadius: parent.outerR
+                            bottomRightRadius: parent.outerR
+                            color: Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                            border.width: 1
+                            border.color: Theme.outlineMedium ?? Theme.outlineVariant
+
+                            ColumnLayout {
+                                id: fromValCol
+                                anchors.fill: parent
+                                anchors.topMargin: Theme.spacingS
+                                anchors.bottomMargin: Theme.spacingS
+                                anchors.leftMargin: Theme.spacingM
+                                anchors.rightMargin: Theme.spacingL
+                                spacing: 2
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: CalculatorService.converterFromValue
+                                    font.pixelSize: Math.max(20, Math.min(32, displayArea.width * 0.08))
+                                    font.weight: Font.Normal
+                                    color: Theme.surfaceText
+                                    horizontalAlignment: Text.AlignRight
+                                    elide: Text.ElideLeft
+                                }
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: ConvLogic.getUnitName(CalculatorService.converterCategory, CalculatorService.converterFromUnit)
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.surfaceVariantText
+                                    horizontalAlignment: Text.AlignRight
+                                }
                             }
                         }
                     }
                 }
-            }
 
             // ── PILL UNIT SELECTOR & SWAP BUTTON ─────────────────────────────
             Item {
@@ -255,13 +379,33 @@ Item {
                 }
             }
             }
+            }
+        }
+
+        // ── MIDDLE: INLINE HISTORY SLIDEOUT (LANDSCAPE) ──────────────────────
+        HistoryPanel {
+            id: convInlineHistoryPanel
+            inlineMode: true
+            Layout.fillWidth: false
+            Layout.fillHeight: true
+            Layout.minimumWidth: 0
+            Layout.preferredWidth: (root.isLandscape && CalculatorService.historyOpen)
+                ? Math.floor(parent.width * 0.22)
+                : 0
+
+            Behavior on Layout.preferredWidth {
+                DAnim {
+                    duration: Theme.mediumDuration
+                    easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
+                }
+            }
         }
 
         // ── 3-COLUMN CONVERTER KEYPAD ───────────────────────────────────────
         Item {
-            Layout.fillWidth: true
+            Layout.fillWidth: !root.isLandscape
             Layout.fillHeight: root.isLandscape
-            Layout.preferredWidth: root.isLandscape ? 1 : -1
+            Layout.preferredWidth: root.isLandscape ? Math.floor(parent.width * 0.50) : -1
             Layout.preferredHeight: root.isLandscape ? -1 : Math.max(220, root.height * 0.52)
 
             GridLayout {

@@ -21,6 +21,20 @@ Singleton {
     property bool isInv: false
     property var history: []
     property bool historyOpen: false
+    property string lastPressedKey: ""
+
+    Timer {
+        id: keyPressAnimTimer
+        interval: 130
+        onTriggered: root.lastPressedKey = ""
+    }
+
+    function triggerKeyPressAnim(key) {
+        if (!key)
+            return;
+        lastPressedKey = key;
+        keyPressAnimTimer.restart();
+    }
     property bool menuOpen: false
     property bool categoryMenuOpen: false
     property bool settingsOpen: false

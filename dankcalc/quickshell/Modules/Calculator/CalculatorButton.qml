@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import qs.Common
+import qs.Services
 import qs.DCommon.Common
 import qs.DCommon.Widgets
 
@@ -38,12 +39,14 @@ Item {
         }
     }
 
+    readonly property bool isKeyPressed: root.text !== "" && CalculatorService.lastPressedKey === root.text
+
     Rectangle {
         id: bgRect
         anchors.fill: parent
-        radius: stateLayer.pressed ? M3E.pressRadiusM : (root.activeState ? M3E.outerR : root.cornerRadius)
-        color: Theme.foregroundColor(root.activeState ? Theme.primaryContainer : root.backgroundColor, true)
-        scale: stateLayer.pressed ? M3E.iconBtnPressScale : 1.0
+        radius: (stateLayer.pressed || root.isKeyPressed) ? M3E.pressRadiusM : (root.activeState ? M3E.outerR : root.cornerRadius)
+        color: Theme.withAlpha(root.activeState ? Theme.primaryContainer : root.backgroundColor, 0.55)
+        scale: (stateLayer.pressed || root.isKeyPressed) ? M3E.iconBtnPressScale : 1.0
         opacity: root.enabled ? 1.0 : 0.28
 
         Behavior on opacity {

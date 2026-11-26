@@ -57,14 +57,61 @@ Rectangle {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: Theme.spacingM
-            spacing: 0
+            spacing: Theme.spacingS
+
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 36
+                radius: height / 2
+                color: Theme.foregroundColor(Theme.surfaceContainerHighest, true)
+                border.width: 1
+                border.color: catSearchInput.activeFocus ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.spacingS
+                    anchors.rightMargin: Theme.spacingS
+                    spacing: Theme.spacingXS
+
+                    DIcon {
+                        name: "search"
+                        size: 16
+                        color: Theme.surfaceVariantText
+                    }
+
+                    TextInput {
+                        id: catSearchInput
+                        Layout.fillWidth: true
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceText
+                        clip: true
+                        selectByMouse: true
+
+                        StyledText {
+                            anchors.fill: parent
+                            visible: catSearchInput.text === ""
+                            text: "Search type..."
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceVariantText
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+            }
 
             ListView {
                 id: catList
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                model: root.categories
+                model: {
+                    const q = catSearchInput.text.trim().toLowerCase();
+                    if (!q) return root.categories;
+                    return root.categories.filter(c =>
+                        (c.name && c.name.toLowerCase().includes(q)) ||
+                        (c.key && c.key.toLowerCase().includes(q))
+                    );
+                }
                 spacing: 3
 
                 delegate: Rectangle {
