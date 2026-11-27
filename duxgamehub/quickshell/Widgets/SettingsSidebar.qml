@@ -78,17 +78,17 @@ Item {
         readonly property var groups: [[
             {
                 accent: "blue",
-                index: 0,
-                label: "Game Hub",
-                hint: "Sources, metadata & library",
-                icon: "sports_esports"
-            },
-            {
-                accent: "blue",
                 index: 1,
                 label: "Appearance",
                 hint: "Theme, shape and motion",
                 icon: "palette"
+            },
+            {
+                accent: "blue",
+                index: 0,
+                label: "Game Hub",
+                hint: "Sources, metadata & library",
+                icon: "sports_esports"
             }
         ], [
             {

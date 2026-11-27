@@ -24,6 +24,7 @@ Item {
     GridLayout {
         id: gridLayout
         anchors.fill: parent
+        anchors.topMargin: Theme.spacingXS
         anchors.leftMargin: root.landscape ? Math.min(Theme.spacingL, Math.max(Theme.spacingM, root.width * 0.04)) : Math.min(Theme.spacingL, Math.max(Theme.spacingM, root.width * 0.04))
         anchors.rightMargin: root.landscape ? Theme.spacingXS : Math.min(Theme.spacingL, Math.max(Theme.spacingM, root.width * 0.04))
         anchors.bottomMargin: root.landscape ? Math.min(Theme.spacingM, Math.max(Theme.spacingS, root.height * 0.03)) : Theme.spacingXS

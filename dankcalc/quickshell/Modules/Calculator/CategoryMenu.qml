@@ -11,6 +11,15 @@ Rectangle {
 
     property bool open: CalculatorService.categoryMenuOpen
     readonly property var categories: ConvLogic.getCategoryList()
+    property int highlightedIndex: 0
+
+    onOpenChanged: {
+        if (open) {
+            catSearchInput.text = "";
+            highlightedIndex = 0;
+            catSearchInput.forceActiveFocus();
+        }
+    }
 
     anchors.fill: parent
     color: Qt.rgba(0, 0, 0, M3E.scrimModal)
@@ -32,12 +41,12 @@ Rectangle {
 
     Rectangle {
         id: menuCard
-        x: Theme.spacingM + Style.buttonHeightS + Theme.spacingS
-        y: 84
+        x: CalculatorService.categoryMenuPos.x
+        y: CalculatorService.categoryMenuPos.y
         width: 220
         height: Math.min(parent.height - 100, 360)
         radius: Theme.cornerRadius
-        color: Theme.surfaceContainer
+        color: Theme.withAlpha(Theme.surfaceContainer, 0.85)
         border.color: M3E.stroke(Theme.outlineVariant, M3E.strokePopup)
         border.width: 1
 
@@ -86,6 +95,23 @@ Rectangle {
                         color: Theme.surfaceText
                         clip: true
                         selectByMouse: true
+                        onTextChanged: root.highlightedIndex = 0
+                        Keys.onDownPressed: {
+                            if (catList.model && catList.model.length > 0)
+                                root.highlightedIndex = Math.min(catList.model.length - 1, root.highlightedIndex + 1);
+                        }
+                        Keys.onUpPressed: {
+                            if (catList.model && catList.model.length > 0)
+                                root.highlightedIndex = Math.max(0, root.highlightedIndex - 1);
+                        }
+                        Keys.onReturnPressed: {
+                            if (catList.model && catList.model.length > 0) {
+                                const idx = Math.max(0, Math.min(catList.model.length - 1, root.highlightedIndex));
+                                CalculatorService.setConverterCategory(catList.model[idx].key);
+                                CalculatorService.categoryMenuOpen = false;
+                            }
+                        }
+                        Keys.onEnterPressed: Keys.onReturnPressed(event)
 
                         StyledText {
                             anchors.fill: parent
@@ -106,8 +132,9 @@ Rectangle {
                 clip: true
                 model: {
                     const q = catSearchInput.text.trim().toLowerCase();
-                    if (!q) return root.categories;
-                    return root.categories.filter(c =>
+                    const nonCurrency = root.categories.filter(c => c.key !== "currency");
+                    if (!q) return nonCurrency;
+                    return nonCurrency.filter(c =>
                         (c.name && c.name.toLowerCase().includes(q)) ||
                         (c.key && c.key.toLowerCase().includes(q))
                     );
@@ -117,9 +144,12 @@ Rectangle {
                 delegate: Rectangle {
                     id: catDelegate
                     required property var modelData
+                    required property int index
                     width: catList.width
                     height: Style.menuItemHeight
                     radius: Theme.cornerRadiusSmall
+                    border.width: index === root.highlightedIndex ? 1 : 0
+                    border.color: Theme.primary
                     color: modelData.key === CalculatorService.converterCategory
                            ? Theme.secondaryContainer
                            : delegateMouse.containsMouse ? Theme.surfaceContainerHighest : "transparent"

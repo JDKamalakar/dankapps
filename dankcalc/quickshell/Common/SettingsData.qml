@@ -128,6 +128,7 @@ Singleton {
     // Calculator preferences
     property alias scientificExpanded: adapter.scientificExpanded
     property alias angleUnitRad: adapter.angleUnitRad
+    property alias startupMode: adapter.startupMode
 
     Component.onCompleted: {
         Paths.mkdir(configDir);
@@ -198,6 +199,7 @@ Singleton {
             property int sidebarAutoHideMs: 1500
             property bool scientificExpanded: false
             property bool angleUnitRad: true
+            property string startupMode: "calculator"
         }
     }
 

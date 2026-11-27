@@ -19,8 +19,12 @@ Singleton {
     property bool justEvaluated: false
     readonly property bool isRad: SettingsData.angleUnitRad
     property bool isInv: false
-    property var history: []
+    readonly property string activeHistoryKey: currentMode === "calculator" ? "calculator" : converterCategory
+    property var historyMap: ({})
+    readonly property var history: historyMap[activeHistoryKey] || []
     property bool historyOpen: false
+    property point categoryMenuPos: Qt.point(92, 112)
+    property rect unitPickerRect: Qt.rect(92, 300, 200, 40)
     property string lastPressedKey: ""
 
     Timer {
@@ -223,8 +227,11 @@ Singleton {
                 result: evaluated,
                 timestamp: Date.now()
             };
-            const newHistory = [entry].concat(history).slice(0, 50);
-            history = newHistory;
+            const currentList = historyMap[activeHistoryKey] || [];
+            const newHistory = [entry].concat(currentList).slice(0, 50);
+            const nextMap = Object.assign({}, historyMap);
+            nextMap[activeHistoryKey] = newHistory;
+            historyMap = nextMap;
             saveHistory();
 
             expression = evaluated;
@@ -245,7 +252,9 @@ Singleton {
     }
 
     function clearHistory() {
-        history = [];
+        const nextMap = Object.assign({}, historyMap);
+        nextMap[activeHistoryKey] = [];
+        historyMap = nextMap;
         saveHistory();
     }
 
@@ -260,7 +269,9 @@ Singleton {
                 if (text && text.trim() !== "") {
                     const data = JSON.parse(text);
                     if (Array.isArray(data)) {
-                        root.history = data;
+                        root.historyMap = { "calculator": data };
+                    } else if (data && typeof data === "object") {
+                        root.historyMap = data;
                     }
                 }
             } catch (e) {
@@ -286,7 +297,7 @@ Singleton {
                     'mkdir -p "$(dirname "$1")" && printf "%s" "$2" > "$1"',
                     "saveHistory",
                     SettingsData.configDir + "/history.json",
-                    JSON.stringify(root.history, null, 2)
+                    JSON.stringify(root.historyMap, null, 2)
                 ];
                 saveHistoryProc.running = true;
             }
@@ -299,6 +310,106 @@ Singleton {
 
     // ── Converter Methods ──────────────────────────────────────────────────
     property bool currencyRatesLoaded: false
+    property var extraCurrencies: []
+
+    function refreshCurrencyRates() {
+        currencyRatesLoaded = false;
+        fetchCurrencyRates();
+    }
+
+    function addExtraCurrency(code) {
+        if (!code || code === converterFromUnit || code === converterToUnit) return;
+        if (extraCurrencies.indexOf(code) !== -1) return;
+        extraCurrencies = extraCurrencies.concat([code]);
+        saveConverterState();
+    }
+
+    function removeExtraCurrency(code) {
+        extraCurrencies = extraCurrencies.filter(c => c !== code);
+        saveConverterState();
+    }
+
+    FileView {
+        id: converterStateFileView
+        path: SettingsData.configDir + "/converter_state.json"
+        blockLoading: false
+        printErrors: false
+        onLoaded: {
+            try {
+                const text = converterStateFileView.text();
+                if (text && text.trim() !== "") {
+                    const data = JSON.parse(text);
+                    if (data && typeof data === "object") {
+                        if (data.converterCategory && SettingsData.startupMode !== "currency") root.converterCategory = data.converterCategory;
+                        if (data.converterFromUnit) root.converterFromUnit = data.converterFromUnit;
+                        if (data.converterToUnit) root.converterToUnit = data.converterToUnit;
+                        if (Array.isArray(data.extraCurrencies)) root.extraCurrencies = data.extraCurrencies;
+                        if (root.converterCategory === "currency") root.fetchCurrencyRates();
+                        root.updateConverterConversion();
+                    }
+                }
+            } catch (e) {
+                console.warn("Failed to parse converter_state.json:", e);
+            }
+        }
+    }
+
+    Process {
+        id: saveStateProc
+        running: false
+    }
+
+    Timer {
+        id: saveStateDebounce
+        interval: 250
+        repeat: false
+        onTriggered: {
+            const payload = JSON.stringify({
+                converterCategory: root.converterCategory,
+                converterFromUnit: root.converterFromUnit,
+                converterToUnit: root.converterToUnit,
+                extraCurrencies: root.extraCurrencies
+            }, null, 2);
+            converterStateFileView.setText(payload);
+        }
+    }
+
+    function saveConverterState() {
+        saveStateDebounce.restart();
+    }
+
+    property bool _startupModeApplied: false
+
+    function applyStartupMode() {
+        if (SettingsData.startupMode === "currency") {
+            currentMode = "converter";
+            converterCategory = "currency";
+            fetchCurrencyRates();
+        } else if (SettingsData.startupMode === "converter") {
+            currentMode = "converter";
+        } else {
+            currentMode = "calculator";
+        }
+    }
+
+    Connections {
+        target: SettingsData
+        function onStartupModeChanged() {
+            if (!root._startupModeApplied) {
+                root._startupModeApplied = true;
+                root.applyStartupMode();
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        applyStartupMode();
+    }
+
+    onConverterCategoryChanged: saveConverterState()
+    onConverterFromUnitChanged: saveConverterState()
+    onConverterToUnitChanged: saveConverterState()
+    onExtraCurrenciesChanged: saveConverterState()
 
     function fetchCurrencyRates() {
         if (currencyRatesLoaded) return;
@@ -350,8 +461,36 @@ Singleton {
         updateConverterConversion();
     }
 
+    Timer {
+        id: converterHistoryTimer
+        interval: 2000
+        repeat: false
+        onTriggered: {
+            if (root.currentMode !== "converter") return;
+            if (!root.converterFromValue || root.converterFromValue === "0" || !root.converterToValue) return;
+            const expr = root.converterFromValue + " " + root.converterFromUnit;
+            const res = root.converterToValue + " " + root.converterToUnit;
+            const currentList = root.historyMap[root.activeHistoryKey] || [];
+            if (currentList.length > 0 && currentList[0].expression === expr && currentList[0].result === res) return;
+            const entry = {
+                expression: expr,
+                result: res,
+                timestamp: Date.now()
+            };
+            const nextMap = Object.assign({}, root.historyMap);
+            nextMap[root.activeHistoryKey] = [entry].concat(currentList).slice(0, 50);
+            root.historyMap = nextMap;
+            root.saveHistory();
+        }
+    }
+
     function updateConverterConversion() {
         converterToValue = ConvLogic.convert(converterCategory, converterFromValue, converterFromUnit, converterToUnit);
+        if (currentMode === "converter" && converterFromValue && converterFromValue !== "0") {
+            converterHistoryTimer.restart();
+        } else {
+            converterHistoryTimer.stop();
+        }
     }
 
     function appendConverterDigit(digit) {

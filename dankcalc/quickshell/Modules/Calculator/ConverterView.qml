@@ -55,9 +55,10 @@ Item {
 
                     Rectangle {
                         id: convCatBtn
+                        visible: CalculatorService.converterCategory !== "currency"
                         width: convCatRow.implicitWidth + Theme.spacingM * 2
                         height: 32
-                        radius: (convCatMouse.pressed || convCatMouse.containsMouse) ? height / 2 : (Theme.cornerRadiusS ?? 8)
+                        radius: (CalculatorService.categoryMenuOpen || convCatMouse.pressed || convCatMouse.containsMouse) ? height / 2 : (Theme.cornerRadiusS ?? 8)
                         color: (CalculatorService.categoryMenuOpen || convCatMouse.containsMouse) ? Theme.withAlpha(Theme.primary, 0.2) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
                         border.width: 1
                         border.color: (CalculatorService.categoryMenuOpen || convCatMouse.containsMouse) ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
@@ -81,11 +82,130 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: CalculatorService.categoryMenuOpen = !CalculatorService.categoryMenuOpen
+                            onClicked: {
+                                const pt = convCatBtn.mapToItem(null, 0, convCatBtn.height + 6);
+                                CalculatorService.categoryMenuPos = Qt.point(pt.x, pt.y);
+                                CalculatorService.categoryMenuOpen = !CalculatorService.categoryMenuOpen;
+                            }
                         }
                     }
 
-                    Item { Layout.fillWidth: true }
+                    // Currency Mode: Live Exchange Rate & Refresh Chips (Flow grid, segmented first/mid/last)
+                    Flow {
+                        visible: CalculatorService.converterCategory === "currency"
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        readonly property real outerR: 16
+                        readonly property real innerR: Theme.cornerRadiusS ?? 8
+
+                        Rectangle {
+                            id: ratePillBtn
+                            width: ratePillRow.implicitWidth + Theme.spacingM * 2
+                            height: 32
+                            topLeftRadius: parent.outerR
+                            bottomLeftRadius: parent.outerR
+                            topRightRadius: CalculatorService.extraCurrencies.length > 0 ? parent.innerR : parent.outerR
+                            bottomRightRadius: CalculatorService.extraCurrencies.length > 0 ? parent.innerR : parent.outerR
+                            color: ratePillMouse.containsMouse ? Theme.withAlpha(Theme.primary, 0.2) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                            border.width: 1
+                            border.color: ratePillMouse.containsMouse ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+
+                            Row {
+                                id: ratePillRow
+                                anchors.centerIn: parent
+                                spacing: 6
+                                DIcon { name: "refresh"; size: 14; color: Theme.primary; anchors.verticalCenter: parent.verticalCenter }
+                                StyledText {
+                                    text: "1 " + CalculatorService.converterFromUnit + " = " + ConvLogic.convert("currency", "1", CalculatorService.converterFromUnit, CalculatorService.converterToUnit) + " " + CalculatorService.converterToUnit
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.weight: Font.Medium
+                                    color: Theme.surfaceText
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: ratePillMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: CalculatorService.refreshCurrencyRates()
+                            }
+                        }
+
+                        // Extra Currency Rate Chips
+                        Repeater {
+                            model: CalculatorService.converterCategory === "currency" ? CalculatorService.extraCurrencies : []
+                            delegate: Rectangle {
+                                required property string modelData
+                                required property int index
+                                readonly property bool isLast: index === CalculatorService.extraCurrencies.length - 1
+                                height: 32
+                                width: extraRateRow.implicitWidth + Theme.spacingM * 2
+                                topLeftRadius: parent.innerR
+                                bottomLeftRadius: parent.innerR
+                                topRightRadius: isLast ? parent.outerR : parent.innerR
+                                bottomRightRadius: isLast ? parent.outerR : parent.innerR
+                                color: extraRateMouse.containsMouse ? Theme.withAlpha(Theme.primary, 0.2) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                                border.width: 1
+                                border.color: extraRateMouse.containsMouse ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+
+                                Row {
+                                    id: extraRateRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+                                    DIcon { name: "refresh"; size: 14; color: Theme.primary; anchors.verticalCenter: parent.verticalCenter }
+                                    StyledText {
+                                        text: "1 " + CalculatorService.converterFromUnit + " = " + ConvLogic.convert("currency", "1", CalculatorService.converterFromUnit, modelData) + " " + modelData
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.weight: Font.Medium
+                                        color: Theme.surfaceText
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: extraRateMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: CalculatorService.refreshCurrencyRates()
+                                }
+                            }
+                        }
+                    }
+
+                    Item {
+                        visible: CalculatorService.converterCategory !== "currency"
+                        Layout.fillWidth: true
+                    }
+
+                    // Currency Mode: Add Extra Currency (+) Pill
+                    Rectangle {
+                        id: addCurrBtn
+                        visible: CalculatorService.converterCategory === "currency"
+                        width: 32
+                        height: 32
+                        radius: (addCurrMouse.pressed || addCurrMouse.containsMouse) ? height / 2 : (Theme.cornerRadiusS ?? 8)
+                        color: addCurrMouse.containsMouse ? Theme.withAlpha(Theme.primary, 0.2) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                        border.width: 1
+                        border.color: addCurrMouse.containsMouse ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+
+                        DIcon { anchors.centerIn: parent; name: "add"; size: 16; color: Theme.primary }
+
+                        MouseArea {
+                            id: addCurrMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                const pt = addCurrBtn.mapToItem(null, 0, addCurrBtn.height + 6);
+                                CalculatorService.unitPickerRect = Qt.rect(pt.x, pt.y, 220, addCurrBtn.height);
+                                CalculatorService.converterPickerTarget = CalculatorService.converterPickerTarget === "extra" ? "" : "extra";
+                            }
+                        }
+                    }
 
                     Rectangle {
                         id: convHistBtn
@@ -136,13 +256,94 @@ Item {
                         readonly property real outerR: Theme.groupedListOuterRadius ?? 16
                         readonly property real innerR: Theme.groupedListInnerRadius ?? 4
 
-                        // Top Segment: "To" Value & Unit (Primary / Result - Click to copy)
+                        // Extra Currencies (Top, Currency x -> Currency 2)
+                        Repeater {
+                            model: CalculatorService.converterCategory === "currency" ? CalculatorService.extraCurrencies.slice().reverse() : []
+                            delegate: Rectangle {
+                                id: extraCard
+                                required property string modelData
+                                required property int index
+                                readonly property bool isFirstExtra: index === 0
+                                readonly property real outerR: Theme.groupedListOuterRadius ?? 16
+                                readonly property real innerR: Theme.groupedListInnerRadius ?? 4
+
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: extraValCol.implicitHeight + Theme.spacingS * 2
+                                topLeftRadius: extraMouse.containsMouse ? Theme.cornerRadiusXL : (isFirstExtra ? outerR : innerR)
+                                topRightRadius: extraMouse.containsMouse ? Theme.cornerRadiusXL : (isFirstExtra ? outerR : innerR)
+                                bottomLeftRadius: extraMouse.containsMouse ? Theme.cornerRadiusXL : innerR
+                                bottomRightRadius: extraMouse.containsMouse ? Theme.cornerRadiusXL : innerR
+                                color: extraMouse.containsMouse ? Theme.foregroundColor(Theme.surfaceContainerHighest, true) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
+                                border.width: 1
+                                border.color: extraMouse.containsMouse ? Theme.primary : (Theme.outlineMedium ?? Theme.outlineVariant)
+
+                                Behavior on color { DColorAnim { duration: Theme.shortDuration } }
+
+                                Component.onCompleted: {
+                                    if (!Theme.reduceMotion) extraAppearAnim.restart();
+                                }
+                                ParallelAnimation {
+                                    id: extraAppearAnim
+                                    NumberAnimation { target: extraCard; property: "opacity"; from: 0.0; to: 1.0; duration: Theme.shortDuration; easing.type: Easing.OutCubic }
+                                    NumberAnimation { target: extraCard; property: "scale"; from: 0.94; to: 1.0; duration: Theme.shortDuration; easing.type: Easing.OutCubic }
+                                }
+
+                                MouseArea {
+                                    id: extraMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: CalculatorService.copyToClipboard(ConvLogic.convert("currency", CalculatorService.converterFromValue, CalculatorService.converterFromUnit, extraCard.modelData))
+                                }
+
+                                DIconButton {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.leftMargin: Theme.spacingS
+                                    iconName: "close"
+                                    size: "xs"
+                                    variant: "standard"
+                                    onClicked: CalculatorService.removeExtraCurrency(extraCard.modelData)
+                                }
+
+                                ColumnLayout {
+                                    id: extraValCol
+                                    anchors.fill: parent
+                                    anchors.topMargin: Theme.spacingS
+                                    anchors.bottomMargin: Theme.spacingS
+                                    anchors.leftMargin: Theme.spacingM + 32
+                                    anchors.rightMargin: Theme.spacingL
+                                    spacing: 2
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: ConvLogic.convert("currency", CalculatorService.converterFromValue, CalculatorService.converterFromUnit, extraCard.modelData)
+                                        font.pixelSize: Math.max(22, Math.min(36, displayArea.width * 0.09))
+                                        font.weight: Font.Bold
+                                        color: extraMouse.containsMouse ? Theme.primary : Theme.surfaceText
+                                        horizontalAlignment: Text.AlignRight
+                                        elide: Text.ElideLeft
+                                    }
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: ConvLogic.getUnitName("currency", extraCard.modelData)
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.weight: Font.SemiBold
+                                        color: Theme.primary
+                                        horizontalAlignment: Text.AlignRight
+                                    }
+                                }
+                            }
+                        }
+
+                        // Middle: "To" Value & Unit (Currency 1 - Click to copy)
                         Rectangle {
                             id: toValueRow
                             Layout.fillWidth: true
                             Layout.preferredHeight: toValCol.implicitHeight + Theme.spacingM * 2
-                            topLeftRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : parent.outerR
-                            topRightRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : parent.outerR
+                            topLeftRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : ((CalculatorService.converterCategory === "currency" && CalculatorService.extraCurrencies.length > 0) ? parent.innerR : parent.outerR)
+                            topRightRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : ((CalculatorService.converterCategory === "currency" && CalculatorService.extraCurrencies.length > 0) ? parent.innerR : parent.outerR)
                             bottomLeftRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : parent.innerR
                             bottomRightRadius: toCardMouse.containsMouse ? Theme.cornerRadiusXL : parent.innerR
                             color: toCardMouse.containsMouse ? Theme.foregroundColor(Theme.surfaceContainerHighest, true) : Theme.foregroundColor(Theme.surfaceContainerHigh, true)
@@ -242,20 +443,29 @@ Item {
                 }
 
             // ── PILL UNIT SELECTOR & SWAP BUTTON ─────────────────────────────
+            // Default (2-unit/currency) horizontal row
             Item {
+                visible: !(CalculatorService.converterCategory === "currency" && CalculatorService.extraCurrencies.length > 0)
                 Layout.fillWidth: true
                 implicitHeight: Style.buttonHeightS
 
             RowLayout {
                 anchors.fill: parent
-                spacing: Theme.spacingS
+                spacing: 4
 
-                // "From" Unit Pill Button
+                readonly property real outerR: height / 2
+                readonly property real innerR: Theme.cornerRadiusS ?? 8
+
+                // "From" Unit Grouped Button
                 Rectangle {
                     id: fromUnitButton
                     Layout.fillWidth: true
                     Layout.preferredHeight: Style.buttonHeightS
-                    radius: height / 2
+                    readonly property bool isPill: fromUnitMouse.containsMouse || fromUnitMouse.pressed || CalculatorService.converterPickerTarget === "from"
+                    topLeftRadius: parent.outerR
+                    bottomLeftRadius: parent.outerR
+                    topRightRadius: isPill ? parent.outerR : parent.innerR
+                    bottomRightRadius: isPill ? parent.outerR : parent.innerR
                     color: fromUnitMouse.containsMouse || CalculatorService.converterPickerTarget === "from"
                            ? Theme.surfaceContainerHighest
                            : Theme.surfaceContainerHigh
@@ -285,6 +495,15 @@ Item {
                             color: Theme.surfaceText
                             horizontalAlignment: Text.AlignHCenter
                             elide: Text.ElideRight
+
+                            onTextChanged: {
+                                if (!Theme.reduceMotion) unitTextAnim.restart();
+                            }
+                            SequentialAnimation on opacity {
+                                id: unitTextAnim
+                                running: false
+                                NumberAnimation { from: 0.25; to: 1.0; duration: Theme.shortDuration; easing.type: Easing.OutCubic }
+                            }
                         }
                     }
 
@@ -293,13 +512,18 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: CalculatorService.converterPickerTarget = CalculatorService.converterPickerTarget === "from" ? "" : "from"
+                        onClicked: {
+                            const pt = fromUnitButton.mapToItem(null, 0, 0);
+                            CalculatorService.unitPickerRect = Qt.rect(pt.x, pt.y, fromUnitButton.width, fromUnitButton.height);
+                            CalculatorService.converterPickerTarget = CalculatorService.converterPickerTarget === "from" ? "" : "from";
+                        }
                     }
                 }
 
                 // Swap Units Button (Icon button with swap_horiz)
                 Rectangle {
                     id: swapBtn
+                    property real swapRotation: 0
                     implicitWidth: Style.buttonHeightS
                     implicitHeight: Style.buttonHeightS
                     radius: height / 2
@@ -320,6 +544,14 @@ Item {
                         name: "swap_horiz"
                         size: Style.iconSizeSmall
                         color: Theme.primary
+                        rotation: swapBtn.swapRotation
+
+                        Behavior on rotation {
+                            DAnim {
+                                duration: Theme.mediumDuration
+                                easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
+                            }
+                        }
                     }
 
                     MouseArea {
@@ -327,16 +559,23 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: CalculatorService.swapConverterUnits()
+                        onClicked: {
+                            swapBtn.swapRotation += 180;
+                            CalculatorService.swapConverterUnits();
+                        }
                     }
                 }
 
-                // "To" Unit Pill Button
+                // "To" Unit Grouped Button
                 Rectangle {
                     id: toUnitButton
                     Layout.fillWidth: true
                     Layout.preferredHeight: Style.buttonHeightS
-                    radius: height / 2
+                    readonly property bool isPill: toUnitMouse.containsMouse || toUnitMouse.pressed || CalculatorService.converterPickerTarget === "to"
+                    topLeftRadius: isPill ? parent.outerR : parent.innerR
+                    bottomLeftRadius: isPill ? parent.outerR : parent.innerR
+                    topRightRadius: parent.outerR
+                    bottomRightRadius: parent.outerR
                     color: toUnitMouse.containsMouse || CalculatorService.converterPickerTarget === "to"
                            ? Theme.surfaceContainerHighest
                            : Theme.surfaceContainerHigh
@@ -366,6 +605,15 @@ Item {
                             color: Theme.surfaceText
                             horizontalAlignment: Text.AlignHCenter
                             elide: Text.ElideRight
+
+                            onTextChanged: {
+                                if (!Theme.reduceMotion) toUnitTextAnim.restart();
+                            }
+                            SequentialAnimation on opacity {
+                                id: toUnitTextAnim
+                                running: false
+                                NumberAnimation { from: 0.25; to: 1.0; duration: Theme.shortDuration; easing.type: Easing.OutCubic }
+                            }
                         }
                     }
 
@@ -374,10 +622,233 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: CalculatorService.converterPickerTarget = CalculatorService.converterPickerTarget === "to" ? "" : "to"
+                        onClicked: {
+                            const pt = toUnitButton.mapToItem(null, 0, 0);
+                            CalculatorService.unitPickerRect = Qt.rect(pt.x, pt.y, toUnitButton.width, toUnitButton.height);
+                            CalculatorService.converterPickerTarget = CalculatorService.converterPickerTarget === "to" ? "" : "to";
+                        }
                     }
                 }
             }
+            }
+
+            // Multi-currency (>2 currencies) stacked controls:
+            // Converting currencies row (segmented) -> Switch button -> Typing currency (bottom-most)
+            ColumnLayout {
+                visible: CalculatorService.converterCategory === "currency" && CalculatorService.extraCurrencies.length > 0
+                Layout.fillWidth: true
+                spacing: Theme.spacingXS
+
+                // 1. Row for the converting currencies (segmented group)
+                RowLayout {
+                    id: multiToRow
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    readonly property real outerR: Style.buttonHeightS / 2
+                    readonly property real innerR: Theme.cornerRadiusS ?? 8
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Style.buttonHeightS
+                        topLeftRadius: multiToRow.outerR
+                        bottomLeftRadius: multiToRow.outerR
+                        topRightRadius: multiToRow.innerR
+                        bottomRightRadius: multiToRow.innerR
+                        color: Theme.surfaceContainerHigh
+                        border.color: M3E.stroke(Theme.outlineVariant, M3E.strokeControl)
+                        border.width: 1
+
+                        StyledText {
+                            anchors.centerIn: parent
+                            text: CalculatorService.converterToUnit
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Font.Medium
+                            color: Theme.surfaceText
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                const pt = parent.mapToItem(null, 0, 0);
+                                CalculatorService.unitPickerRect = Qt.rect(pt.x, pt.y, parent.width, parent.height);
+                                CalculatorService.converterPickerTarget = "to";
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: CalculatorService.extraCurrencies
+                        delegate: Rectangle {
+                            required property string modelData
+                            required property int index
+                            readonly property bool isLast: index === CalculatorService.extraCurrencies.length - 1
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: Style.buttonHeightS
+                            topLeftRadius: multiToRow.innerR
+                            bottomLeftRadius: multiToRow.innerR
+                            topRightRadius: isLast ? multiToRow.outerR : multiToRow.innerR
+                            bottomRightRadius: isLast ? multiToRow.outerR : multiToRow.innerR
+                            color: Theme.surfaceContainerHigh
+                            border.color: M3E.stroke(Theme.outlineVariant, M3E.strokeControl)
+                            border.width: 1
+
+                            StyledText {
+                                anchors.centerIn: parent
+                                text: modelData
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Medium
+                                color: Theme.surfaceText
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    const pt = parent.mapToItem(null, 0, 0);
+                                    CalculatorService.unitPickerRect = Qt.rect(pt.x, pt.y, parent.width, parent.height);
+                                    CalculatorService.converterPickerTarget = "extra";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. Multiple angled swap buttons (funnel going down, center straight)
+                RowLayout {
+                    id: multiSwapRow
+                    Layout.fillWidth: true
+                    spacing: 4
+                    readonly property real centerIdx: CalculatorService.extraCurrencies.length / 2.0
+
+                    Item {
+                        Layout.fillWidth: true
+                        implicitHeight: Style.buttonHeightS
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            implicitWidth: Style.buttonHeightS
+                            implicitHeight: Style.buttonHeightS
+                            radius: height / 2
+                            color: mainSwapMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh
+                            border.color: M3E.stroke(Theme.outlineVariant, M3E.strokeControl)
+                            border.width: 1
+
+                            DIcon {
+                                anchors.centerIn: parent
+                                name: "swap_vert"
+                                size: Style.iconSizeSmall
+                                color: Theme.primary
+                                rotation: (0 === multiSwapRow.centerIdx ? 0 : (0 < multiSwapRow.centerIdx ? -30 : 30)) + swapBtn.swapRotation
+                                Behavior on rotation {
+                                    DAnim {
+                                        duration: Theme.mediumDuration
+                                        easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: mainSwapMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    swapBtn.swapRotation += 180;
+                                    CalculatorService.swapConverterUnits();
+                                }
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: CalculatorService.extraCurrencies
+                        delegate: Item {
+                            required property string modelData
+                            required property int index
+                            Layout.fillWidth: true
+                            implicitHeight: Style.buttonHeightS
+
+                            Rectangle {
+                                id: extraSwapBtn
+                                property real extraSwapRotation: 0
+                                anchors.centerIn: parent
+                                implicitWidth: Style.buttonHeightS
+                                implicitHeight: Style.buttonHeightS
+                                radius: height / 2
+                                color: extraSwapMouse.containsMouse ? Theme.surfaceContainerHighest : Theme.surfaceContainerHigh
+                                border.color: M3E.stroke(Theme.outlineVariant, M3E.strokeControl)
+                                border.width: 1
+
+                                DIcon {
+                                    anchors.centerIn: parent
+                                    name: "swap_vert"
+                                    size: Style.iconSizeSmall
+                                    color: Theme.primary
+                                    rotation: (((index + 1) === multiSwapRow.centerIdx ? 0 : ((index + 1) < multiSwapRow.centerIdx ? -30 : 30))) + extraSwapBtn.extraSwapRotation
+                                    Behavior on rotation {
+                                        DAnim {
+                                            duration: Theme.mediumDuration
+                                            easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
+                                        }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: extraSwapMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        extraSwapBtn.extraSwapRotation += 180;
+                                        const targetCurr = modelData;
+                                        const oldFrom = CalculatorService.converterFromUnit;
+                                        const nextExtra = CalculatorService.extraCurrencies.slice();
+                                        nextExtra[index] = oldFrom;
+                                        CalculatorService.setConverterFromUnit(targetCurr);
+                                        CalculatorService.extraCurrencies = nextExtra;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Bottom-most: Currency we are typing
+                Rectangle {
+                    id: multiFromBtn
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Style.buttonHeightS
+                    radius: height / 2
+                    color: multiFromMouse.containsMouse || CalculatorService.converterPickerTarget === "from"
+                           ? Theme.surfaceContainerHighest
+                           : Theme.surfaceContainerHigh
+                    border.color: CalculatorService.converterPickerTarget === "from"
+                                  ? M3E.stroke(Theme.primary, M3E.strokeControl)
+                                  : M3E.stroke(Theme.outlineVariant, M3E.strokeControl)
+                    border.width: 1
+
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: ConvLogic.getUnitFullName(CalculatorService.converterCategory, CalculatorService.converterFromUnit)
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Medium
+                        color: Theme.surfaceText
+                    }
+
+                    MouseArea {
+                        id: multiFromMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            const pt = multiFromBtn.mapToItem(null, 0, 0);
+                            CalculatorService.unitPickerRect = Qt.rect(pt.x, pt.y, multiFromBtn.width, multiFromBtn.height);
+                            CalculatorService.converterPickerTarget = CalculatorService.converterPickerTarget === "from" ? "" : "from";
+                        }
+                    }
+                }
             }
             }
         }

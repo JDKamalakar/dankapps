@@ -49,6 +49,15 @@ Item {
         scale: (stateLayer.pressed || root.isKeyPressed) ? M3E.iconBtnPressScale : 1.0
         opacity: root.enabled ? 1.0 : 0.28
 
+        ElevationShadow {
+            anchors.fill: parent
+            z: -1
+            targetRadius: parent.radius
+            targetColor: parent.color
+            level: Style.elevationLevel1
+            visible: root.enabled
+        }
+
         Behavior on opacity {
             DAnim {
                 duration: M3E.effectsFastMs

@@ -78,17 +78,17 @@ Item {
         readonly property var groups: [[
             {
                 accent: "blue",
-                index: 0,
-                label: "Calculator",
-                hint: "Angle unit and history",
-                icon: "calculate"
-            },
-            {
-                accent: "blue",
                 index: 1,
                 label: "Appearance",
                 hint: "Theme, shape and motion",
                 icon: "palette"
+            },
+            {
+                accent: "blue",
+                index: 0,
+                label: "Calculator",
+                hint: "Angle unit and history",
+                icon: "calculate"
             }
         ], [
             {

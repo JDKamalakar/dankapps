@@ -83,6 +83,17 @@ Item {
                     }
                 }
 
+                SettingsButtonGroupRow {
+                    iconName: "launch"
+                    text: "Startup mode"
+                    description: "Which view to open when launching"
+                    model: ["Calculator", "Convert", "Currency"]
+                    currentIndex: SettingsData.startupMode === "currency" ? 2 : (SettingsData.startupMode === "converter" ? 1 : 0)
+                    onSelectionChanged: (idx, sel) => {
+                        if (sel) SettingsData.startupMode = idx === 2 ? "currency" : (idx === 1 ? "converter" : "calculator");
+                    }
+                }
+
                 SettingsToggleRow {
                     iconName: "function"
                     text: "Scientific keypad"

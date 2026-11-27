@@ -423,10 +423,12 @@ FloatingWindow {
 
                         ColumnLayout {
                             anchors.fill: parent
+                            anchors.topMargin: Theme.spacingM
                             spacing: 0
 
-                        // Mode & Action Row
+                        // Mode & Action Row (all controls moved into CalculatorDisplay / ConverterView)
                         Item {
+                            visible: false
                             Layout.fillWidth: true
                             implicitHeight: Style.buttonHeightS
 
@@ -506,7 +508,8 @@ FloatingWindow {
                         Layout.fillWidth: true
                         Layout.fillHeight: window.isLandscape
                         Layout.leftMargin: Theme.spacingM
-                        Layout.bottomMargin: Theme.spacingM
+                        Layout.rightMargin: window.isLandscape ? 0 : Theme.spacingM
+                        Layout.bottomMargin: window.isLandscape ? Theme.spacingM : 0
                         Layout.preferredWidth: window.isLandscape
                             ? Math.floor(parent.width * (CalculatorService.historyOpen ? 0.28 : 0.50))
                             : -1
@@ -526,6 +529,7 @@ FloatingWindow {
                     HistoryPanel {
                         id: inlineHistoryPanel
                         inlineMode: true
+                        visible: window.isLandscape && (CalculatorService.historyOpen || width > 1)
                         Layout.fillWidth: false
                         Layout.fillHeight: true
                         Layout.bottomMargin: Theme.spacingM
@@ -553,7 +557,8 @@ FloatingWindow {
                         // Scientific Drawer Container (Full button-side width, expands scientific calc inside)
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.rightMargin: window.isLandscape ? Theme.spacingM : 0
+                            Layout.leftMargin: window.isLandscape ? 0 : Theme.spacingM
+                            Layout.rightMargin: Theme.spacingM
                             Layout.fillHeight: window.scientificOpen
                             Layout.preferredHeight: window.scientificOpen ? 3 : sciHeader.implicitHeight + Theme.spacingXS * 2
                             radius: Theme.cornerRadiusXL
